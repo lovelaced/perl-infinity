@@ -1,0 +1,26 @@
+<Bindings>
+	<Binding name="PERLINFINITY_OPTIONS" header="PERLINFINITY" category="ADDONS">
+		PerlInfinity.Options:Toggle()
+	</Binding>
+	<Binding name="PERLINFINITY_EDITMODE" category="ADDONS">
+		PerlInfinity.Movers:OpenEditMode()
+	</Binding>
+	<Binding name="PERLINFINITY_RANGE" category="ADDONS">
+		PerlInfinity.Bindings.Toggle("range.enabled")
+	</Binding>
+	<Binding name="PERLINFINITY_RAID" category="ADDONS">
+		PerlInfinity.Bindings.Toggle("raid.enabled")
+	</Binding>
+	<Binding name="PERLINFINITY_RAIDPETS" category="ADDONS">
+		PerlInfinity.Bindings.Toggle("raid.pets")
+	</Binding>
+	<Binding name="PERLINFINITY_RAIDICONS" category="ADDONS">
+		PerlInfinity.Bindings.CycleRaidIcons()
+	</Binding>
+	<Binding name="PERLINFINITY_TANKS" category="ADDONS">
+		PerlInfinity.Bindings.Toggle("tanks.enabled")
+	</Binding>
+	<Binding name="PERLINFINITY_HEALERS" category="ADDONS">
+		PerlInfinity.Bindings.Toggle("healers.enabled")
+	</Binding>
+</Bindings>

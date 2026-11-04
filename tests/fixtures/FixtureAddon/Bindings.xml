@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="FIXTURE_TOGGLE" header="FIXTURE" category="ADDONS">
+		FixtureAddon_ToggleBinding(keystate)
+	</Binding>
+</Bindings>

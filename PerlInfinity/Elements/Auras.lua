@@ -1,0 +1,612 @@
+-- Buff and debuff icons, built on Blizzard's aura container.
+--
+-- Aura details are secret in combat on Forever, and reading them from addon
+-- code throws. The container reads auras inside the game and draws icons,
+-- stacks, timers and debuff colors for us; we only describe what to show
+-- with filter strings ("HELPFUL|PLAYER" is "buffs I cast") and style each
+-- button once when it's created. Containers can't be made during combat,
+-- and buttons can't be restyled while auras are secret, so those steps wait.
+local _, ns = ...
+
+local Combat, Media = ns.Combat, ns.Media
+
+local AuraHost = {}
+ns.AuraHost = AuraHost
+
+local SortDefault = AuraContainerSortMethod and AuraContainerSortMethod.Default or 0
+local SortNormal = AuraContainerSortDirection and AuraContainerSortDirection.Normal or 0
+local FlowRight = AnchorUtil.FlowDirection.Right
+local FlowDown = AnchorUtil.FlowDirection.Down
+local FlowUp = AnchorUtil.FlowDirection.Up
+local RemainingDuration = Enum.DurationTextBindingProperty and Enum.DurationTextBindingProperty.RemainingDuration
+
+---------------------------------------------------------------------------
+-- Building a few frames' auras at a time
+---------------------------------------------------------------------------
+
+-- Every aura group makes ten buttons up front, so one frame's auras are a
+-- few dozen widgets. When many frames appear at once (logging in to a full
+-- raid, or joining one), building them all in one go would freeze the game,
+-- so each rendered frame builds about AuraHost.budget milliseconds' worth
+-- and the rest carry on in the next.
+AuraHost.budget = 4
+local GetTime, debugprofilestop = GetTime, debugprofilestop
+local budgetTime, spent = nil, 0
+local waiting, waitingList = {}, {}
+local resumeQueued = false
+
+local function Spend(started)
+	local now = GetTime()
+	if budgetTime ~= now then
+		budgetTime, spent = now, 0
+	end
+	spent = spent + math.max(debugprofilestop() - started, 0.001)
+end
+
+-- Something is always built in each frame, so the queue drains even when
+-- one container takes longer than the whole budget.
+local function OverBudget()
+	local now = GetTime()
+	if budgetTime ~= now then
+		budgetTime, spent = now, 0
+	end
+	return spent > 0 and spent >= AuraHost.budget
+end
+
+local Resume
+
+local function ScheduleResume()
+	if not resumeQueued then
+		resumeQueued = true
+		C_Timer.After(0, Resume)
+	end
+end
+
+local function Wait(frame)
+	if not waiting[frame] then
+		waiting[frame] = true
+		waitingList[#waitingList + 1] = frame
+	end
+	ScheduleResume()
+end
+
+function Resume()
+	resumeQueued = false
+	-- A resume runs on a new frame, so it starts with a fresh budget.
+	budgetTime, spent = GetTime(), 0
+	local list = waitingList
+	waitingList = {}
+	for i = 1, #list do
+		local frame = list[i]
+		if OverBudget() then
+			waitingList[#waitingList + 1] = frame
+		else
+			waiting[frame] = nil
+			-- A frame hidden again by now finishes when it next shows.
+			if not frame:Deferred() then
+				ns.Call(frame.Configure, frame)
+			end
+		end
+	end
+	if #waitingList > 0 then
+		ScheduleResume()
+	end
+end
+
+-- Frames still waiting for their turn (for tests and the self-test).
+function AuraHost.Waiting()
+	return #waitingList
+end
+
+---------------------------------------------------------------------------
+-- One container per frame, shared by icons and the highlight slots.
+---------------------------------------------------------------------------
+
+-- Returns one of the frame's containers ("icons" by default), or nil if it
+-- can't be made yet. In that case it's made as soon as it's allowed and the
+-- frame reconfigures.
+function AuraHost.Get(frame, name)
+	name = name or "icons"
+	local containers = frame.AuraContainers
+	if not containers then
+		containers = {}
+		frame.AuraContainers = containers
+	end
+	if containers[name] then
+		return containers[name]
+	end
+	if frame.preview then
+		return nil
+	end
+	if InCombatLockdown() then
+		if not frame.auraHostPending then
+			frame.auraHostPending = true
+			Combat:Run(Combat:Key(frame, "auraHost"), function()
+				frame.auraHostPending = false
+				frame:Configure()
+			end)
+		end
+		return nil
+	end
+	if OverBudget() then
+		Wait(frame)
+		return nil
+	end
+	local started = debugprofilestop()
+	local container = CreateFrame("AuraContainer", nil, frame.Content, "CustomAuraContainerTemplate")
+	container.groups = {}
+	container.slots = {}
+	containers[name] = container
+	if frame.unit then
+		container:SetUnit(frame.unit)
+	end
+	Spend(started)
+	return container
+end
+
+-- Points every container at the frame's unit and refreshes it.
+function AuraHost.Refresh(frame, unit)
+	local containers = frame.AuraContainers
+	if not containers then
+		return
+	end
+	for _, container in pairs(containers) do
+		container:SetUnit(unit)
+		container:UpdateAllAuras()
+	end
+end
+
+-- Adds a group once; afterwards it's only reconfigured.
+function AuraHost.EnsureGroup(container, key, filter, initialize)
+	if container.groups[key] then
+		return true
+	end
+	if InCombatLockdown() then
+		return false
+	end
+	local started = debugprofilestop()
+	container:AddAuraGroup(key, filter, {
+		initializeFrame = initialize,
+		sortMethod = SortDefault,
+		sortDirection = SortNormal,
+		maxFrameCount = 0,
+	})
+	container.groups[key] = true
+	Spend(started)
+	return true
+end
+
+function AuraHost.EnsureSlot(container, key, filter, initialize, candidates)
+	if container.slots[key] then
+		return true
+	end
+	if InCombatLockdown() then
+		return false
+	end
+	local started = debugprofilestop()
+	container:AddAuraSlot(key, filter, {
+		initializeFrame = initialize,
+		candidateFilters = candidates,
+		sortMethod = SortDefault,
+		sortDirection = SortNormal,
+	})
+	container.slots[key] = true
+	Spend(started)
+	return true
+end
+
+---------------------------------------------------------------------------
+-- Button styling (runs inside Blizzard's wrapper when a button is created)
+---------------------------------------------------------------------------
+
+-- Debuff border colors keyed by dispel type, as the container expects.
+local DISPEL_COLORS
+local function DispelColors()
+	if not DISPEL_COLORS then
+		DISPEL_COLORS = {}
+		for _, kind in ipairs({ "Magic", "Curse", "Disease", "Poison" }) do
+			local color = DebuffTypeColor and DebuffTypeColor[kind]
+			if color then
+				DISPEL_COLORS[kind] = CreateColor(color.r, color.g, color.b, 1)
+			end
+		end
+		DISPEL_COLORS.None = CreateColor(0.8, 0, 0, 1)
+	end
+	return DISPEL_COLORS
+end
+AuraHost.DispelColors = DispelColors
+
+-- Countdown numbers only appear below a number of seconds: the text color's
+-- alpha comes from a step curve over the remaining time.
+local countdownCurves = {}
+local function CountdownCurve(seconds)
+	local curve = countdownCurves[seconds]
+	if not curve then
+		curve = C_CurveUtil.CreateColorCurve()
+		curve:SetType(Enum.LuaCurveType.Step)
+		curve:AddPoint(0, CreateColor(1, 0.82, 0, 1))
+		curve:AddPoint(seconds, CreateColor(1, 0.82, 0, 0))
+		countdownCurves[seconds] = curve
+	end
+	return curve
+end
+
+local function WantsSwirl(mine)
+	local mode = ns.db.auras.spirals
+	return mode == "all" or (mode == "mine" and mine)
+end
+
+local function WantsCountdown(mine)
+	local mode = ns.db.auras.countdown
+	return mode == "all" or (mode == "mine" and mine)
+end
+
+local function ApplyButtonPrefs(button)
+	local general = ns.db.general
+	button.Cooldown:SetDrawSwipe(WantsSwirl(button.mine))
+	button.Time:SetShown(WantsCountdown(button.mine))
+	button:SetMouseMotionEnabled(general.auraTooltips ~= "never")
+	button:SetHideTooltipInCombat(not general.auraTooltipsInCombat)
+end
+
+local function InitButton(button, harmful, mine, stealable)
+	button.mine = mine
+
+	local icon = button:CreateTexture(nil, "ARTWORK")
+	icon:SetAllPoints()
+	icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+	button:SetIcon(icon)
+
+	local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cooldown:SetAllPoints()
+	cooldown:SetReverse(true)
+	cooldown:SetDrawEdge(false)
+	cooldown:SetHideCountdownNumbers(true)
+	button:SetDurationCooldown(cooldown)
+	button.Cooldown = cooldown
+
+	-- Fonts must be set before the bindings, which write text immediately.
+	local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+	count:SetPoint("BOTTOMRIGHT", 2, -1)
+	button:SetApplicationCount(count)
+
+	local time = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	time:SetPoint("CENTER", 0, 0)
+	button:SetDurationText(time, {
+		textColor = { curve = CountdownCurve(ns.db.auras.countdownStart), property = RemainingDuration },
+	})
+	button.Time = time
+
+	if harmful then
+		local border = button:CreateTexture(nil, "OVERLAY")
+		border:SetTexture(Media.DEBUFF_BORDER)
+		border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625)
+		border:SetPoint("TOPLEFT", -1, 1)
+		border:SetPoint("BOTTOMRIGHT", 1, -1)
+		button:AddDispelTypeTexture(border, {
+			style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
+			showWhenHarmful = true,
+			showWithoutDispelType = true,
+			customDispelColorMap = DispelColors(),
+		})
+	end
+
+	if stealable then
+		-- X-Perl's spinning arrows around buffs you can purge or steal.
+		local ring = button:CreateTexture(nil, "OVERLAY")
+		ring:SetTexture(Media.STEAL)
+		ring:SetBlendMode("ADD")
+		ring:SetPoint("TOPLEFT", -5, 5)
+		ring:SetPoint("BOTTOMRIGHT", 5, -5)
+		local spin = ring:CreateAnimationGroup()
+		spin:SetLooping("REPEAT")
+		local rotation = spin:CreateAnimation("Rotation")
+		rotation:SetDegrees(-360)
+		rotation:SetDuration(4)
+		spin:Play()
+	end
+
+	button:SetTooltipAnchorPoint("ANCHOR_BOTTOMRIGHT")
+	ApplyButtonPrefs(button)
+end
+
+-- One initializer per kind of group, made once and shared by every frame.
+local initializers = {}
+local function Initializer(harmful, mine, stealable)
+	local key = (harmful and "h" or "b") .. (mine and "m" or "") .. (stealable and "s" or "")
+	local initialize = initializers[key]
+	if not initialize then
+		initialize = function(button)
+			InitButton(button, harmful, mine, stealable)
+		end
+		initializers[key] = initialize
+	end
+	return initialize
+end
+
+---------------------------------------------------------------------------
+-- Which groups a frame shows (pure; see tests)
+---------------------------------------------------------------------------
+
+local BIG = 1.4
+
+local function Round(value)
+	return math.floor(value + 0.5)
+end
+
+-- Returns an ordered list of groups for a frame's aura settings. Every group
+-- costs ten aura buttons up front (the game builds them in a batch), so
+-- frames that only ever show friends (you, your pet, your party) skip the
+-- groups that only matter on enemies: buffs you can remove, and your own
+-- debuffs shown larger.
+function AuraHost.Groups(auras, global, hostile)
+	local groups = {}
+	local function Add(key, filter, candidates, size, harmful, mine, stealable)
+		groups[#groups + 1] = {
+			key = key, filter = filter, candidates = candidates, size = Round(size),
+			harmful = harmful, mine = mine, stealable = stealable,
+		}
+	end
+
+	if auras.buffs then
+		local size = auras.buffSize
+		local bigSize = global.bigOwn and size * BIG or size
+		if auras.buffFilter == "castable" then
+			Add("buffs", "HELPFUL|RAID", nil, size, false, false, false)
+		elseif auras.buffFilter == "mine" then
+			Add("buffsMine", "HELPFUL|PLAYER", nil, bigSize, false, true, false)
+		else
+			local steal = hostile and global.markStealable
+			if steal then
+				Add("stealable", "HELPFUL", { isStealable = true }, bigSize, false, false, true)
+			end
+			if global.bigOwn then
+				Add("buffsMine", "HELPFUL|PLAYER", steal and { isStealable = false } or nil, bigSize, false, true, false)
+				Add("buffs", "HELPFUL", { isFromPlayerOrPlayerPet = false, isStealable = steal and false or nil }, size, false, false, false)
+			else
+				Add("buffs", "HELPFUL", steal and { isStealable = false } or nil, size, false, false, false)
+			end
+		end
+	end
+
+	if auras.debuffs then
+		local first = #groups + 1
+		local size = auras.debuffSize
+		local bigSize = global.bigOwn and size * BIG or size
+		if auras.debuffFilter == "dispellable" then
+			Add("debuffs", "HARMFUL|RAID", nil, size, true, false, false)
+		elseif auras.debuffFilter == "mine" then
+			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
+		elseif global.bigOwn and hostile then
+			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
+			Add("debuffs", "HARMFUL", { isFromPlayerOrPlayerPet = false }, size, true, false, false)
+		else
+			Add("debuffs", "HARMFUL", nil, size, true, false, false)
+		end
+		if groups[first] then
+			groups[first].newLine = true
+		end
+	end
+	return groups
+end
+
+local ALL_GROUPS = { "stealable", "buffsMine", "buffs", "debuffsMine", "debuffs", "raid" }
+
+---------------------------------------------------------------------------
+-- The element
+---------------------------------------------------------------------------
+
+local Auras = ns.Element("Auras", {
+	-- Blizzard's container listens for aura changes itself; we only refresh
+	-- when the unit changes, and on poll ticks for units without events.
+	poll = true,
+})
+
+function Auras.Enabled(frame, conf)
+	if frame.spec.layout == "Raid" then
+		return conf.icons ~= "none"
+	end
+	return conf.auras ~= nil and (conf.auras.buffs or conf.auras.debuffs)
+end
+
+function Auras.Create(frame)
+	frame.auraGroups = {}
+end
+
+local function RaidGroups(conf)
+	local filter
+	if conf.icons == "buffs" then
+		filter = conf.iconsFilter and "HELPFUL|RAID" or "HELPFUL"
+	else
+		filter = conf.iconsFilter and "HARMFUL|RAID" or "HARMFUL"
+	end
+	return { { key = "raid", filter = filter, size = 10, harmful = conf.icons == "debuffs", max = 8 } }
+end
+
+local function PlaceContainer(frame, conf, container)
+	container:ClearAllPoints()
+	if frame.spec.layout == "Raid" then
+		local position = conf.iconPosition
+		if position == "right" then
+			container:SetPoint("TOPLEFT", frame.StatsBox, "TOPRIGHT", 1, -2)
+		elseif position == "below" then
+			container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -1)
+		else
+			container:SetPoint("BOTTOMRIGHT", frame.StatsBox, "BOTTOMRIGHT", -3, 3)
+		end
+		container:SetFlowLayoutAnchorPoint(position == "inside" and "BOTTOMRIGHT" or "TOPLEFT")
+		container:SetFlowLayoutGrowthDirection(position == "inside" and AnchorUtil.FlowDirection.Left or FlowRight, FlowDown)
+		return
+	end
+	if conf.auras.onTop then
+		container:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 2, 2)
+		container:SetFlowLayoutAnchorPoint("BOTTOMLEFT")
+		container:SetFlowLayoutGrowthDirection(FlowRight, FlowUp)
+	else
+		container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -2)
+		container:SetFlowLayoutAnchorPoint("TOPLEFT")
+		container:SetFlowLayoutGrowthDirection(FlowRight, FlowDown)
+	end
+end
+
+function Auras.Configure(frame, conf)
+	frame.auraGroups = frame.spec.layout == "Raid" and RaidGroups(conf) or AuraHost.Groups(conf.auras, ns.db.auras, frame.spec.hostile)
+	if frame.preview then
+		return
+	end
+	local container = AuraHost.Get(frame)
+	if not container then
+		return
+	end
+
+	-- What to show changes right away; filters are evaluated by the game.
+	local lineWidth = frame.rects.width
+	local rows = conf.auras and conf.auras.rows or 1
+	local used = {}
+	for _, group in ipairs(frame.auraGroups) do
+		local initialize = Initializer(group.harmful, group.mine, group.stealable)
+		if AuraHost.EnsureGroup(container, group.key, group.filter, initialize) then
+			used[group.key] = true
+			local perRow = math.max(1, math.floor(lineWidth / math.max(group.size + 2, 1)))
+			container:SetAuraGroupFilterString(group.key, group.filter)
+			container:SetAuraGroupCandidateFilters(group.key, group.candidates)
+			container:SetAuraGroupMaxFrameCount(group.key, group.max or perRow * rows)
+		end
+	end
+	for _, key in ipairs(ALL_GROUPS) do
+		if container.groups[key] and not used[key] then
+			container:SetAuraGroupMaxFrameCount(key, 0)
+		end
+	end
+	container:SetEnabled(true)
+
+	-- Sizes and placement resize aura buttons, which the game only allows
+	-- while auras aren't secret, so they wait for that if needed.
+	Combat:RunAuraSafe(container, AuraHost.ApplyLayout, frame, conf, container)
+end
+
+function AuraHost.ApplyLayout(frame, conf, container)
+	PlaceContainer(frame, conf, container)
+	container:SetFlowLayoutMaximumLineSize(frame.rects.width)
+	for index, group in ipairs(frame.auraGroups) do
+		if container.groups[group.key] then
+			container:SetAuraGroupLayout(group.key, {
+				elementWidth = group.size,
+				elementHeight = group.size,
+				elementSpacing = 2,
+				lineSpacing = 2,
+				forceNewLine = group.newLine or false,
+				layoutIndex = index,
+			})
+		end
+	end
+	AuraHost.RestyleButtons(container)
+end
+
+function AuraHost.RestyleButtons(container)
+	for key in pairs(container.groups) do
+		local count = container:GetAuraGroupFrameCount(key)
+		for i = 1, count do
+			local button = container:GetAuraGroupFrame(key, i)
+			if button and button.Cooldown then
+				ApplyButtonPrefs(button)
+				button:SetDurationText(button.Time, {
+					textColor = { curve = CountdownCurve(ns.db.auras.countdownStart), property = RemainingDuration },
+				})
+			end
+		end
+	end
+end
+
+function Auras.Disable(frame)
+	local container = frame.AuraContainers and frame.AuraContainers.icons
+	if container then
+		for _, key in ipairs(ALL_GROUPS) do
+			if container.groups[key] then
+				container:SetAuraGroupMaxFrameCount(key, 0)
+			end
+		end
+	end
+	if frame.PreviewAuras then
+		for _, icon in ipairs(frame.PreviewAuras) do
+			icon:Hide()
+		end
+	end
+end
+
+-- Containers update themselves; UnitFrame refreshes them when the unit
+-- behind the frame changes (see UnitFrame:Flush).
+function Auras.Update()
+end
+
+-- Mirrors the filter strings for sample auras in the options window.
+local function SampleMatches(group, aura)
+	if (aura.harmful and true or false) ~= (group.harmful and true or false) then
+		return false
+	end
+	if group.key == "stealable" then
+		return aura.stealable and true or false
+	end
+	if group.mine and not aura.mine then
+		return false
+	end
+	local candidates = group.candidates
+	if candidates then
+		if candidates.isFromPlayerOrPlayerPet == false and aura.mine then
+			return false
+		end
+		if candidates.isStealable == false and aura.stealable then
+			return false
+		end
+	end
+	return true
+end
+
+-- Previews draw plain icons, since the container only shows real auras.
+function Auras.Preview(frame, sample)
+	local icons = frame.PreviewAuras
+	if not icons then
+		icons = {}
+		frame.PreviewAuras = icons
+	end
+	for _, icon in ipairs(icons) do
+		icon:Hide()
+	end
+	local conf = frame:Conf()
+	local list = sample.auras or {}
+	local x, y, rowHeight = 2, -2, 0
+	local lineWidth = frame.rects.width
+	local count = 0
+	for _, group in ipairs(frame.auraGroups) do
+		if group.newLine and x > 2 then
+			x, y, rowHeight = 2, y - rowHeight - 2, 0
+		end
+		for _, aura in ipairs(list) do
+			local matches = SampleMatches(group, aura)
+			if matches then
+				count = count + 1
+				local icon = icons[count]
+				if not icon then
+					icon = frame.Content:CreateTexture(nil, "ARTWORK")
+					icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+					icons[count] = icon
+				end
+				if x + group.size > lineWidth then
+					x, y, rowHeight = 2, y - rowHeight - 2, 0
+				end
+				icon:SetTexture(C_Spell.GetSpellTexture(aura.spell) or 134400)
+				icon:SetSize(group.size, group.size)
+				icon:ClearAllPoints()
+				local anchor = frame.StatsBox
+				if frame.spec.layout ~= "Raid" and conf.auras.onTop then
+					icon:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", x, -y)
+				else
+					icon:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", x, y)
+				end
+				icon:Show()
+				x = x + group.size + 2
+				rowHeight = math.max(rowHeight, group.size)
+			end
+		end
+	end
+end

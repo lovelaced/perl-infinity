@@ -1,0 +1,14 @@
+## Interface: 16001
+## AllowLoadGameType: camelot, forever
+## Title: Fixture Addon
+## Notes: Harness self-test fixture. Not a real addon.
+## Version: 0.0.1
+## SavedVariables: FixtureDB
+## SavedVariablesPerCharacter: FixtureCharDB
+
+Libs\LibEditMode\namespaced.lua
+Libs\LibEditMode\embed.xml
+Core.lua
+ClassicOnly.lua [AllowLoadGameType classic]
+Frames.lua
+Templates.xml

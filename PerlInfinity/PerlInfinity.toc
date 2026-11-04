@@ -1,0 +1,106 @@
+## Interface: 16001
+## AllowLoadGameType: camelot, forever
+## ExcludeLoadGameType: standard, classic
+## Title: Perl Infinity
+## Notes: X-Perl style unit frames for WoW: Forever
+## Category: Unit Frames
+## Author: lovelaced
+## Version: @project-version@
+## IconTexture: Interface\Icons\INV_Misc_Gem_Pearl_02
+## AddonCompartmentFunc: PerlInfinity_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: PerlInfinity_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: PerlInfinity_OnAddonCompartmentLeave
+## SavedVariables: PerlInfinityDB, PerlInfinityLog
+## SavedVariablesPerCharacter: PerlInfinityCharDB
+## OptionalDeps: LibSharedMedia-3.0
+## X-License: GPL-3.0-or-later
+## X-Website: https://github.com/lovelaced/perl-infinity
+
+Libs\LibEditMode\namespaced.lua
+Libs\LibEditMode\embed.xml
+
+Locale\enUS.lua
+
+Core\Init.lua
+Diag\Log.lua
+Core\Util.lua
+Core\Secret.lua
+Core\Events.lua
+Core\Scheduler.lua
+Core\Combat.lua
+Core\Poller.lua
+
+Config\Defaults.lua
+Config\Store.lua
+Config\Profiles.lua
+
+Data\Classes.lua
+Data\Spells.lua
+
+Style\Media.lua
+Style\Colors.lua
+Style\Box.lua
+Style\Bars.lua
+
+Unit\Element.lua
+Unit\UnitFrame.lua
+Unit\Layout.lua
+Unit\Build.lua
+Unit\Header.lua
+
+Elements\Health.lua
+Elements\Power.lua
+Elements\HealPrediction.lua
+Elements\Name.lua
+Elements\Level.lua
+Elements\Portrait.lua
+Elements\Castbar.lua
+Elements\Auras.lua
+Elements\DispelHighlight.lua
+Elements\Highlights.lua
+Elements\Range.lua
+Elements\Threat.lua
+Elements\CombatFeedback.lua
+Elements\Status.lua
+Elements\Indicators.lua
+Elements\ComboPoints.lua
+Elements\Experience.lua
+Elements\DruidMana.lua
+Elements\PetHappiness.lua
+Elements\Totems.lua
+Elements\LowHealth.lua
+
+Frames\Registry.lua
+Frames\Player.lua
+Frames\Target.lua
+Frames\TargetOfTarget.lua
+Frames\Party.lua
+Frames\Raid.lua
+
+Raid\RosterPlan.lua
+Raid\RaidLayouts.lua
+Raid\MainTanks.lua
+Raid\HealerMonitor.lua
+Raid\BuffCheck.lua
+Raid\AggroWarning.lua
+Raid\RaidNames.lua
+
+Blizzard\Hide.lua
+
+EditMode\Snap.lua
+EditMode\Movers.lua
+EditMode\QuickSettings.lua
+EditMode\Placeholders.lua
+
+Options\Widgets.lua
+Options\Pages.lua
+Options\Preview.lua
+Options\Window.lua
+Options\ProfileDialogs.lua
+Options\Launcher.lua
+Options\Entry.lua
+
+Diag\Probes.lua
+Diag\SelfTest.lua
+
+Templates.xml

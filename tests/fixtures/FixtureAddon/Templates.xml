@@ -1,0 +1,26 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Secure unit button: the harness should mark it protected and run OnLoad via the mixin -->
+	<Button name="FixtureUnitButtonTemplate" inherits="SecureUnitButtonTemplate" mixin="FixtureUnitButtonMixin" virtual="true">
+		<Size x="120" y="40"/>
+		<Attributes>
+			<Attribute name="*type1" value="target"/>
+			<Attribute name="*type2" value="togglemenu"/>
+		</Attributes>
+		<Layers>
+			<Layer level="OVERLAY">
+				<FontString parentKey="Name" inherits="GameFontNormal">
+					<Anchors><Anchor point="TOPLEFT" x="4" y="-4"/></Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<StatusBar parentKey="Health"/>
+		</Frames>
+		<Scripts>
+			<OnLoad method="OnLoad"/>
+			<OnAttributeChanged method="OnAttributeChanged"/>
+			<OnShow method="OnShow"/>
+			<OnHide method="OnHide"/>
+		</Scripts>
+	</Button>
+</Ui>

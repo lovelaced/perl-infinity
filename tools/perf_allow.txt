@@ -1,0 +1,10 @@
+# Files allowed to use OnUpdate scripts or C_Timer.NewTicker/NewTimer (lint rule L7).
+# Everything else must be event-driven, use AnimationGroups, StatusBar:SetTimerDuration
+# or duration bindings. One path per line, then "# reason". Paths match by suffix.
+PerlInfinity/Core/Scheduler.lua    # one self-hiding OnUpdate flushes dirty frames once per rendered frame
+PerlInfinity/Core/Poller.lua       # the single shared ticker for compound units (ToT etc.); exists only while subscribed
+PerlInfinity/Core/Countdown.lua    # bounded ticker fallback when DurationTextBinding is unavailable
+PerlInfinity/Diag/SelfTest.lua     # /perlinfinity selftest steps are spaced with timers; runs only on demand
+PerlInfinity/Raid/RaidLayouts.lua  # roster move executor timeout (10 s cap), only while a layout is loading
+PerlInfinity/Elements/Range.lua    # range changes as people move, with no event; one 0.5 s ticker over visible frames only
+PerlInfinity/EditMode/Snap.lua    # snap preview lines follow the mouse; runs only while a Perl Infinity frame is being dragged in Edit Mode

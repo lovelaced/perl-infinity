@@ -1,0 +1,39 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!--
+		The button every group header creates for party and raid members.
+		Clicks: left targets, right opens the unit menu. Click-casting addons
+		and Blizzard's own click bindings work through SecureUnitButtonTemplate.
+		Scripts are declared here rather than set from Lua, so buttons the
+		header creates during combat get them too.
+	-->
+	<Button name="PerlInfinityUnitButtonTemplate" inherits="SecureUnitButtonTemplate" registerForClicks="AnyUp" virtual="true">
+		<Size x="80" y="40"/>
+		<Attributes>
+			<Attribute name="*type1" type="string" value="target"/>
+			<Attribute name="*type2" type="string" value="togglemenu"/>
+		</Attributes>
+		<Scripts>
+			<OnLoad>
+				PerlInfinity.Header.OnChildLoad(self)
+			</OnLoad>
+			<OnAttributeChanged>
+				PerlInfinity.Header.OnChildAttributeChanged(self, name, value)
+			</OnAttributeChanged>
+			<OnEvent>
+				if self.OnEvent then self:OnEvent(event, ...) end
+			</OnEvent>
+			<OnShow>
+				if self.OnShow then self:OnShow() end
+			</OnShow>
+			<OnHide>
+				if self.OnHide then self:OnHide() end
+			</OnHide>
+			<OnEnter>
+				if self.OnEnter then self:OnEnter() end
+			</OnEnter>
+			<OnLeave>
+				if self.OnLeave then self:OnLeave() end
+			</OnLeave>
+		</Scripts>
+	</Button>
+</Ui>
