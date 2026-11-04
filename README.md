@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.png" alt="Perl Infinity icon: a green and blue infinity symbol with a pearl at its center" width="128">
+
 # Perl Infinity
 
 *The classic X-Perl unit frames, rewritten from scratch for WoW: Forever.*
@@ -22,8 +24,17 @@ Perl Infinity brings the dark boxes, square portraits and original bar textures 
 - **A settings window that feels native**: built from the game's own controls, with a live preview beside your settings.
 - **Raid tools that work from your own client**: tank targets, a healer mana window, class buff checks, aggro warnings and saved raid layouts.
 - **Healing and debuff cues**: incoming heals, heal over time bars, and highlights for debuffs you can remove.
-- **Updates only when something changes**: frames follow game events, with a small timer only for units the game doesn't report on, like target of target.
+- **Updates when something changes**: frames follow game events instead of checking constantly.
 - **Profiles**: share settings between characters, or export a profile as a line of text and send it to a friend.
+
+## Why Perl Infinity
+
+- **Built for Forever from the first line.** WoW: Forever hides most health, power and aura values from addons. Perl Infinity was written around that rule rather than adapted from older code.
+- **Careful with your CPU.** Frames update from game events. The only steady timers during normal play are a small one for units the game doesn't report on, like target of target, and a twice-a-second range check on frames you can see. In six logged beta sessions on one Mac, loading took 12 to 19 ms, and 2 of about 20,700 frame updates went over 5 ms. That's early data from before launch, not a raid benchmark.
+- **No reliance on other players.** It sends no addon messages, so nothing depends on your group having it installed.
+- **Easy to try.** It uses its own folder and saved settings, so it won't overwrite an X-Perl or Z-Perl setup. Turn your other unit frame addon off while you try it. If you turn a Perl Infinity frame off, the game's own frame comes back after a reload.
+- **Tested outside the game and inside it.** An offline test suite runs every frame through simulated combat and Forever's data rules, and fails on any Lua error or blocked action. Simulations can't catch everything, so `/pinf selftest` also checks your real game, including whether everything the addon relies on still exists after a patch.
+- **Actively maintained and open source.** Perl Infinity launched with WoW: Forever in November 2026, and it's maintained by a longtime Z-Perl player who uses it. It's new, so there's no long track record yet, but every change is public in the [commit history](https://github.com/lovelaced/perl-infinity/commits/main) and bug reports go straight to the maintainer. It's free under the GPL.
 
 ## Install
 
@@ -55,17 +66,60 @@ To move a frame, open Edit Mode with `/pinf move` and drag it. A party member's 
 | `/pinf reset positions` | Puts every frame back where it started |
 | `/pinf selftest` | Checks Perl Infinity against your game and saves a report |
 
-### What's different from X-Perl
-
-Forever limits what addons can read, especially in combat, so a few things changed:
-
-- Some old options are gone because the game blocks the data behind them, like raid-wide durability and resistance checks.
-- Range checking uses your class spells automatically, or a single 40-yard mode.
-- There's no compatibility code for older addons, and nothing that duplicates a feature the game already has.
-
 ### Reporting a bug
 
 Run `/pinf selftest`, then [open an issue](https://github.com/lovelaced/perl-infinity/issues) and describe what you saw. The report is saved in `WTF/Account/<your account>/SavedVariables/PerlInfinity.lua`, so attach that too if you're happy to share it.
+
+## How it differs from X-Perl
+
+Perl Infinity keeps X-Perl's look and most of its features, but it's new code. This comparison is against Z-Perl, X-Perl's successor.
+
+Most of the changes come from one rule: Forever hides most health, power and aura values from addons. An addon can hand those values to the game to display, but it can't read them, compare them or add them up.
+
+### What works differently
+
+| | X-Perl and Z-Perl | Perl Infinity | Why |
+|---|---|---|---|
+| **Moving frames** | Unlock, drag, and resize with a grip | The game's Edit Mode | You arrange your whole screen in one place, with positions saved per layout |
+| **Settings** | Its own options window | A window built from the game's controls, with a live preview | It behaves like the rest of the game's interface |
+| **Health and power** | The addon reads the numbers and works out bars and text | The game fills in the bars, text and colors | Forever hides these numbers |
+| **Buffs and debuffs** | The addon reads each one and draws its icon | The game draws them, using filters Perl Infinity sets | Their details are hidden in combat |
+| **Incoming heals** | A shared library that had other players' addons report their heals | The game's own heal prediction | That library can't work on Forever |
+| **Range** | You pick a spell or item, or a fixed 40-yard check | It picks one of your class spells, or uses a 40-yard check | Less to set up |
+| **Updates** | Timers across many frames | Game events, plus two small timers | It keeps CPU use low |
+| **Raid tools** | Some rely on data shared between players' addons | Only what your own client can see | Forever locks addon messages in instances |
+| **Languages** | English plus several others | English for now | All the text is in one table, ready for translators |
+
+### What's gone, and why
+
+**Forever hides the data they need:**
+
+- Target counters and the assists window. Who's targeting whom is hidden on dungeon and raid maps.
+- Raid mana and health totals. Addons can't add up hidden values.
+- Heal over time counters, heal sparkles and "buffs until debuffed".
+- Duplicate-target borders on tank frames, caster names in aura tooltips and per-class aura exception lists.
+
+**They need other players' addons:**
+
+- Durability, resistance and reagent checks. They relied on other players' addons replying, and Forever locks addon messages in instances.
+
+**Forever doesn't need them:**
+
+- Bars for class resources from later expansions, vehicle swaps and pet battle handling.
+- Compatibility code for addons such as CT_RaidAssist, BigWigs and HealBot.
+
+**Your old settings don't carry over:**
+
+- There's no import from X-Perl or Z-Perl profiles, so you start fresh.
+
+### Limits to know about
+
+- Buff checks only work out of combat, because buff details are hidden during fights.
+- The threat gauge shows only a color when the game keeps the exact numbers secret, which happens in some boss fights.
+
+### What you keep
+
+Heal over time glows and bars, the being-healed glow, the threat needle, damage and healing numbers over portraits, debuff highlights, cast bars, range fading and the low-health warning are all here, rebuilt on what Forever allows.
 
 ## Development
 

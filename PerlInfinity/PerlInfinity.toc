@@ -6,7 +6,7 @@
 ## Category: Unit Frames
 ## Author: lovelaced
 ## Version: @project-version@
-## IconTexture: Interface\Icons\INV_Misc_Gem_Pearl_02
+## IconTexture: Interface\AddOns\PerlInfinity\Media\Icon
 ## AddonCompartmentFunc: PerlInfinity_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: PerlInfinity_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: PerlInfinity_OnAddonCompartmentLeave

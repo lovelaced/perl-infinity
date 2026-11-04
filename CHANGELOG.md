@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-11-04)
+
+- Perl Infinity now has its own icon in the addon list.
+
 ## 1.0.0 (2026-11-04)
 
 First public release.
