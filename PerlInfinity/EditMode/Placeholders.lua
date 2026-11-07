@@ -8,13 +8,16 @@ ns.Placeholders = Placeholders
 
 local samples = {}
 
+-- Frames that show several samples, one per party member.
+local MANY = { party = 4, partytarget = 4, partypet = 4 }
+
 local SINGLE = {
 	pet = true, pettarget = true, target = true, targettarget = true,
 	targettargettarget = true, focus = true, focustarget = true,
 }
 
 function Placeholders:Set(key, mover, show)
-	if not SINGLE[key] and key ~= "party" then
+	if not SINGLE[key] and not MANY[key] then
 		return
 	end
 	local list = samples[key]
@@ -26,8 +29,7 @@ function Placeholders:Set(key, mover, show)
 		end
 		if not list then
 			list = {}
-			local count = key == "party" and 4 or 1
-			for i = 1, count do
+			for i = 1, MANY[key] or 1 do
 				local preview = ns.Frames:CreatePreview(key, mover)
 				preview:SetAlpha(0.6)
 				preview:EnableMouse(false)

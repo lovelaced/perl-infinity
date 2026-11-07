@@ -2,11 +2,16 @@
 -- you lose control of your character. Your health is secret, so the game
 -- decides whether you're under the threshold: a step curve over your health
 -- percent gives the overlay's alpha directly.
+--
+-- A flight path takes control away too, but that isn't something to warn about.
+-- The check runs again on each pulse in case the game marks you as flying just
+-- after it tells us you've lost control.
 local _, ns = ...
 
 local Secret = ns.Secret
 
 local UnitHealthPercent = UnitHealthPercent
+local UnitOnTaxi = UnitOnTaxi
 
 local LowHealth = ns.Element("LowHealth", {
 	unitEvents = { "UNIT_HEALTH", "UNIT_MAXHEALTH" },
@@ -39,6 +44,11 @@ local function Overlay(file)
 	return holder
 end
 
+local function StopControlGlow()
+	controlOverlay:SetAlpha(0)
+	controlOverlay.Pulse:Stop()
+end
+
 function LowHealth.Enabled(frame)
 	return frame.kind == "player" and not frame.preview and ns.db.alerts.lowHealth
 end
@@ -47,6 +57,11 @@ function LowHealth.Create()
 	if not overlay then
 		overlay = Overlay("Interface\\FullScreenTextures\\LowHealth")
 		controlOverlay = Overlay("Interface\\FullScreenTextures\\OutOfControl")
+		controlOverlay.Pulse:SetScript("OnLoop", function()
+			if UnitOnTaxi("player") then
+				StopControlGlow()
+			end
+		end)
 	end
 end
 
@@ -59,16 +74,17 @@ end
 function LowHealth.Disable()
 	overlay:SetAlpha(0)
 	overlay.Pulse:Stop()
-	controlOverlay:SetAlpha(0)
+	StopControlGlow()
 end
 
 function LowHealth.OnUnitEvent(_, event)
 	if event == "PLAYER_CONTROL_LOST" then
-		controlOverlay:SetAlpha(1)
-		controlOverlay.Pulse:Play()
+		if not UnitOnTaxi("player") then
+			controlOverlay:SetAlpha(1)
+			controlOverlay.Pulse:Play()
+		end
 	elseif event == "PLAYER_CONTROL_GAINED" then
-		controlOverlay:SetAlpha(0)
-		controlOverlay.Pulse:Stop()
+		StopControlGlow()
 	end
 end
 

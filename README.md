@@ -50,7 +50,7 @@ Perl Infinity only loads on WoW: Forever.
 
 Type `/perlinfinity` or `/pinf` to open the options. You can also find it under **Options > AddOns**, or in the addon button on your minimap.
 
-To move a frame, open Edit Mode with `/pinf move` and drag it. A party member's pet and target move with their party frame.
+To move a frame, open Edit Mode with `/pinf move` and drag it. Party targets and party pets each have their own box, so you can place them apart from the party. They stay beside the party until you drag them, and **Reset position** in the box's popup puts them back.
 
 | Command | What it does |
 |---|---|

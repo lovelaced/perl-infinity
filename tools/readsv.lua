@@ -376,6 +376,53 @@ local function listScreenshotFiles(dir)
   return files
 end
 
+-- Findings in the order they happened, those with a stack first: a stack is
+-- the write that caused it, and the rest are usually what spread from there.
+local function renderTaintWatch(out, watch)
+  out[#out + 1] = "  watch is " .. (watch.on and "on" or "off")
+  for _, run in ipairs(watch.runs) do
+    local names = {}
+    for name in pairs(istable(run.findings) and run.findings or {}) do names[#names + 1] = name end
+    table.sort(names, function(a, b)
+      local fa, fb = run.findings[a], run.findings[b]
+      if (fa.stack ~= nil) ~= (fb.stack ~= nil) then return fa.stack ~= nil end
+      if tostring(fa.time) ~= tostring(fb.time) then return tostring(fa.time) < tostring(fb.time) end
+      return a < b
+    end)
+    out[#out + 1] = string.format("  run started %s: %d found, %d dropped", tostring(run.started), #names, tonumber(run.dropped) or 0)
+    for _, name in ipairs(names) do
+      local f = run.findings[name]
+      out[#out + 1] = string.format("    %s  %s  by %s  level %s, %s%s", tostring(f.time), name, tostring(f.by), tostring(f.level), tostring(f.group), f.combat and ", in combat" or "")
+      if f.mouse or f.open then out[#out + 1] = string.format("      mouse: %s  open: %s", tostring(f.mouse), tostring(f.open)) end
+      if f.stack then
+        out[#out + 1] = "      trail: " .. tostring(f.crumbs)
+        for line in tostring(f.stack):gmatch("[^\n]+") do out[#out + 1] = "      " .. line end
+      end
+    end
+  end
+end
+
+local function renderAuraFrames(out, state)
+  out[#out + 1] = string.format("  in combat %s, auras secret %s, layouts waiting %s, builds waiting %s",
+    tostring(state.combat), tostring(state.aurasSecret), tostring(state.layoutsWaiting), tostring(state.buildsWaiting))
+  for _, f in ipairs(istable(state.frames) and state.frames or {}) do
+    local icons = {}
+    for key, count in pairs(istable(f.icons) and f.icons or {}) do icons[#icons + 1] = key .. "=" .. tostring(count) end
+    table.sort(icons)
+    out[#out + 1] = string.format("  %s %s: shown %s, visible %s, needs setup %s, groups wanted %s, waiting for combat %s",
+      tostring(f.kind), tostring(f.unit), tostring(f.shown), tostring(f.visible), tostring(f.stale), tostring(f.groupsWanted), tostring(f.waitingForCombat))
+    out[#out + 1] = string.format("    game reports buff %s, debuff %s", tostring(f.gameHasBuff), tostring(f.gameHasDebuff))
+    out[#out + 1] = string.format("    icons: anchors %s, unit %s, enabled %s, visible %s, counts %s",
+      tostring(f.anchors), tostring(f.containerUnit), tostring(f.enabled), tostring(f.containerVisible), table.concat(icons, "; "))
+    if istable(f.auras) then
+      for _, name in ipairs({ "yourBuffs", "otherBuffs", "debuffs" }) do
+        local list = f.auras[name]
+        out[#out + 1] = "    " .. name .. ": " .. (istable(list) and (#list > 0 and table.concat(list, "; ") or "none") or tostring(list))
+      end
+    end
+  end
+end
+
 local function renderScreenshots(out, shots, dir)
   if not istable(shots) or #shots == 0 then out[#out + 1] = "  (none taken)"; return end
   local files = listScreenshotFiles(dir)
@@ -525,6 +572,14 @@ function R.report(data, opts)
   if istable(log.census) and count(log.census) > 0 then renderMatrix(out, log.census) else out[#out + 1] = "  (nothing recorded)" end
   section(out, "Manifest: missing")
   renderMissing(out, istable(latest.manifest) and latest.manifest.missing or (st and istable(st.manifest) and st.manifest.missing))
+  if istable(log.taintWatch) and istable(log.taintWatch.runs) and #log.taintWatch.runs > 0 then
+    section(out, "Taint watch")
+    renderTaintWatch(out, log.taintWatch)
+  end
+  if istable(latest.auraFrames) then
+    section(out, "Group frame auras at logout")
+    renderAuraFrames(out, latest.auraFrames)
+  end
   section(out, "Screenshots")
   renderScreenshots(out, latest.screenshots, opts.screenshotDir or R.SCREENSHOT_DIR)
 

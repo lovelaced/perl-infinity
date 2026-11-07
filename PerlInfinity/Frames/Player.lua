@@ -50,7 +50,8 @@ Frames:Define("player", {
 	elements = {
 		"Health", "HealPrediction", "Power", "DruidMana", "Experience", "Name", "Level", "Portrait",
 		"Castbar", "Status", "Leader", "RaidIcon", "PvP", "StateIcon", "ReadyCheck", "GroupNumber",
-		"CombatFeedback", "Totems", "LowHealth",
+		-- Auras comes after Totems: icons below your frame make room for the totem row.
+		"CombatFeedback", "Totems", "Auras", "LowHealth",
 	},
 	refreshEvents = { "PLAYER_ENTERING_WORLD" },
 	sample = function()
@@ -58,7 +59,7 @@ Frames:Define("player", {
 		local powerToken = select(2, UnitPowerType("player"))
 		return {
 			unit = "player",
-			name = UnitName("player"),
+			name = ns.Secret.UnitFullName("player"),
 			class = class,
 			level = UnitLevel("player"),
 			health = 3412, maxHealth = 4120,
@@ -67,6 +68,13 @@ Frames:Define("player", {
 			cast = L.SAMPLE_CAST,
 			group = 2,
 			leader = true,
+			resting = true,
+			auras = {
+				{ spell = 1126, mine = true },
+				{ spell = 1243 },
+				{ spell = 8122, harmful = true },
+				{ spell = 8679, enchant = true },
+			},
 		}
 	end,
 })

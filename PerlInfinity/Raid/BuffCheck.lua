@@ -79,7 +79,7 @@ function BuffCheck:Run()
 			local missing = {}
 			for _, unit in ipairs(units) do
 				if UnitExists(unit) and not UnitIsDeadOrGhost(unit) and UnitIsConnected(unit) and not HasAny(unit, names) then
-					missing[#missing + 1] = UnitName(unit)
+					missing[#missing + 1] = ns.Secret.UnitFullName(unit)
 				end
 			end
 			if #missing > 0 then
@@ -132,7 +132,7 @@ local function OnAuraTooltip(tooltip, data)
 	for _, unit in ipairs(GroupUnits()) do
 		if UnitExists(unit) and UnitIsConnected(unit) then
 			if HasAny(unit, names) == wantHave then
-				list[#list + 1] = UnitName(unit)
+				list[#list + 1] = ns.Secret.UnitFullName(unit)
 			end
 		end
 	end

@@ -9,13 +9,11 @@
 -- The container's size is secret once a group exists, so anything anchored to it
 -- reports secret geometry (Blizzard wraps it to hide aura counts).
 
-local Secret = require("secret")
-
 local A = {}
 
 local FILTER_TOKENS = { HELPFUL = 1, HARMFUL = 1, PLAYER = 1, RAID = 1, CANCELABLE = 1, NOT_CANCELABLE = 1,
   INCLUDE_NAME_PLATE_ONLY = 1, MAW = 1, EXTERNAL_DEFENSIVE = 1, CROWD_CONTROL = 1, RAID_IN_COMBAT = 1,
-  RAID_PLAYER_DISPELLABLE = 1, BIG_DEFENSIVE = 1, IMPORTANT = 1 }
+  RAID_PLAYER_DISPELLABLE = 1, BIG_DEFENSIVE = 1, IMPORTANT = 1, DISPELLABLE = 1 }
 
 local function validFilter(f)
   if type(f) ~= "string" or f == "" then return false end
@@ -40,7 +38,7 @@ function A.install(h)
   env.AuraContainerSortDirection = { Normal = 0, Reverse = 1 }
   env.AuraContainerItemEnchantmentSlot = { MainHand = 0, OffHand = 1, Ranged = 2 }
   env.AuraContainerItemEnchantmentSortMethod = { Slot = 0, Duration = 1 }
-  env.CustomAuraContainerItemEnchantmentPlacement = { BeforeAuras = 0, AfterAuras = 1 }
+  env.CustomAuraContainerItemEnchantmentPlacement = { BeforeAuraGroups = 0, AfterAuraGroups = 1 }
   env.CustomAuraContainerAuraProcessingPolicy = { None = 0, ProcessAura = 1 }
   env.AnchorUtil = env.AnchorUtil or {}
   env.AnchorUtil.FlowLayoutAxis = { Horizontal = 1, Vertical = 2 }
@@ -91,7 +89,7 @@ function A.install(h)
   function ButtonAPI:ClearDispelTypeTextures() bst(self).dispelTextures = {} end
   function ButtonAPI:GetDispelTypeTextureCount() return #bst(self).dispelTextures end
   function ButtonAPI:GetDispelTypeTexture(i) local d = bst(self).dispelTextures[i]; return d and d.texture end
-  function ButtonAPI:SetCancelAuraButtons(v) bst(self).cancelButtons = v end
+  function ButtonAPI:SetCancelAuraButtons(v) bst(self).cancelButtons = v; self.testCancelButtons = v end
   function ButtonAPI:SetTooltipAnchorPoint(p, x, y) bst(self).tooltipAnchor = { p, x, y } end
   function ButtonAPI:GetTooltipAnchorPoint() local t = bst(self).tooltipAnchor; if t then return t[1], t[2], t[3] end end
   function ButtonAPI:SetHideTooltipInCombat(v) bst(self).hideTooltipInCombat = v end
@@ -175,27 +173,13 @@ function A.install(h)
     if not g then error(string.format("%s: aura group '%s' was not found with this key.", what, tostring(key)), 3) end
     return g
   end
-  local function matchingCount(self, g)
-    local c = cst(self)
-    local unit = c.unit
-    if not unit or not w:get(unit) then return 0 end
-    local n = 0
-    for _, a in ipairs(w:get(unit).auras) do
-      local f = g.filter:upper()
-      local kindOk = (f:find("HARMFUL") and a.isHarmful) or (f:find("HELPFUL") and a.isHelpful)
-      if kindOk and (not f:find("PLAYER") or a.isFromPlayerOrPlayerPet) then n = n + 1 end
-    end
-    return math.min(n, g.maxFrameCount)
-  end
   function API:GetAuraGroupFrame(key, i)
     local g = group(self, key, "GetAuraGroupFrame")
     return g.frames[i]
   end
   function API:GetAuraGroupFrameCount(key)
-    local g = group(self, key, "GetAuraGroupFrameCount")
-    local n = matchingCount(self, g)
-    if secretNow() then return Secret.wrap(n) end
-    return n
+    -- Every button the group owns, in use or not, as in the real container.
+    return #group(self, key, "GetAuraGroupFrameCount").frames
   end
   function API:IsAuraGroupEnabled(key) return group(self, key, "IsAuraGroupEnabled").enabled end
   function API:SetAuraGroupEnabled(key, on) group(self, key, "SetAuraGroupEnabled").enabled = on and true or false end

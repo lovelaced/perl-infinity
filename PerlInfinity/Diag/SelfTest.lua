@@ -97,7 +97,7 @@ local function Semantics()
 		return binding
 	end)
 	s.rolesets = {}
-	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "PetFrame", "PartyFrame", "CompactRaidFrameManager" }) do
+	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "PetFrame", "PartyFrame", "CompactRaidFrameManager", "BuffFrame", "DebuffFrame" }) do
 		local frame = _G[name]
 		if frame then
 			s.rolesets[name] = (frame.IsRolesetFiltered and frame:IsRolesetFiltered() and "blocked" or "not blocked")
@@ -124,6 +124,105 @@ local function Structure()
 		end
 	end
 	results.structure = { frames = frames, headers = headers }
+end
+
+-- Buttons a group owns, how many are showing, and how wide the first one is.
+local function IconCounts(container, key)
+	local count = container:GetAuraGroupFrameCount(key)
+	local shown = 0
+	for i = 1, count do
+		local isShown = container:GetAuraGroupFrame(key, i):IsShown()
+		if not issecretvalue(isShown) and isShown then
+			shown = shown + 1
+		end
+	end
+	local first = container:GetAuraGroupFrame(key, 1)
+	return string.format("%d made, %d shown, width %s", count, shown, tostring(Log.Scrub(first and first:GetWidth())))
+end
+
+-- What the game says is on a unit, for comparing with the icons. The lists use
+-- the same filters as the icons, so an aura in both shows up in both.
+local function AuraList(unit, filter)
+	local Scrub = Log.Scrub
+	local list = {}
+	for i, aura in ipairs(C_UnitAuras.GetUnitAuras(unit, filter, 12)) do
+		list[i] = string.format("%s (id %s, from a player: %s)", tostring(Scrub(aura.name)),
+			tostring(Scrub(aura.auraInstanceID)), tostring(Scrub(aura.isFromPlayerOrPlayerPet)))
+	end
+	return list
+end
+
+local function AuraLists(unit)
+	local lists = {}
+	for name, filter in pairs({ yourBuffs = "HELPFUL|PLAYER", otherBuffs = "HELPFUL|!PLAYER", debuffs = "HARMFUL" }) do
+		local ok, list = pcall(AuraList, unit, filter)
+		lists[name] = ok and list or "<hidden while auras are secret>"
+	end
+	return lists
+end
+
+-- What each frame's aura icons were doing when you logged out or reloaded, for
+-- working out why a frame shows no buffs or debuffs. Recorded while you're in a
+-- group or have icons on your own frame, with your target for comparison.
+local function AuraFrameState(frame)
+	local Scrub = Log.Scrub
+	local unit = frame.unit
+	local state = {
+		kind = frame.kind,
+		unit = unit,
+		shown = frame:IsShown(),
+		visible = frame:IsVisible(),
+		stale = frame.stale,
+		waitingForCombat = frame.auraHostPending,
+		groupsWanted = frame.auraGroups and #frame.auraGroups,
+	}
+	if unit then
+		state.gameHasBuff = Probes.Run(C_UnitAuras.GetAuraDataByIndex, unit, 1, "HELPFUL")
+		state.gameHasDebuff = Probes.Run(C_UnitAuras.GetAuraDataByIndex, unit, 1, "HARMFUL")
+		state.auras = AuraLists(unit)
+	end
+	local container = frame.AuraContainers and frame.AuraContainers.icons
+	if container then
+		state.anchors = Scrub(container:GetNumPoints())
+		state.containerUnit = Scrub(container:GetUnit())
+		state.enabled = container:IsEnabled()
+		state.containerVisible = container:IsVisible()
+		state.icons = {}
+		for key in pairs(container.groups) do
+			local ok, counts = pcall(IconCounts, container, key)
+			state.icons[key] = ok and counts or "<hidden while auras are secret>"
+		end
+	end
+	return state
+end
+
+local function RecordAuraFrames(log)
+	local player = ns.Frames.instances.player
+	local playerIcons = player and player.AuraContainers
+	if not (IsInGroup() or playerIcons) or not log.session then
+		return
+	end
+	local list = {}
+	if playerIcons then
+		list[#list + 1] = AuraFrameState(player)
+	end
+	local header = _G.PerlInfinity_PartyHeader
+	for _, child in ipairs(header and header.children or {}) do
+		if child.unit then
+			list[#list + 1] = AuraFrameState(child)
+		end
+	end
+	local target = ns.Frames.instances.target
+	if target then
+		list[#list + 1] = AuraFrameState(target)
+	end
+	log.session.auraFrames = {
+		combat = InCombatLockdown(),
+		aurasSecret = C_Secrets.ShouldAurasBeSecret(),
+		layoutsWaiting = ns.Combat:HasAuraPending(),
+		buildsWaiting = ns.AuraHost.Waiting(),
+		frames = list,
+	}
 end
 
 -- Asks every frame to redraw everything, which surfaces any secret misuse.
@@ -290,6 +389,7 @@ function SelfTest:Login()
 		end)
 	end)
 	Log.OnLogout = function(log)
+		ns.Call(RecordAuraFrames, log)
 		log.session.scheduler = CopyTable(ns.Scheduler.stats)
 		log.session.loginMs = ns.loginMs
 		if C_AddOnProfiler and C_AddOnProfiler.IsEnabled() and Enum.AddOnProfilerMetric then

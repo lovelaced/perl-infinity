@@ -39,14 +39,26 @@ function Build.Attach(root, kind, spec, preview)
 	local thin = spec.layout == "Raid"
 	root.NameBox = Box.Create(content, thin)
 	root.StatsBox = Box.Create(content, thin)
+	-- The level and portrait boxes sit in front of the elite dragon. They're
+	-- raised now, before elements add the 3D portrait, so it lands above its box.
 	if spec.layout ~= "Raid" then
 		root.LevelBox = Box.Create(content)
+		Box.Raise(root.LevelBox, content, Box.LEVEL.FRONT)
 		root.LevelText = MakeText(root.LevelBox, "GameFontNormalSmall", "CENTER")
 		root.LevelText:SetPoint("CENTER", 0, 1)
 	end
 	if spec.layout == "PortraitLeft" or spec.layout == "PortraitRight" then
 		root.PortraitBox = Box.Create(content)
+		Box.Raise(root.PortraitBox, content, Box.LEVEL.FRONT)
 	end
+
+	-- Raid markers, leader crowns, PvP badges and the other small icons live
+	-- here, in front of every box. Content's own textures draw behind its
+	-- boxes, which is where these used to be.
+	local overlay = CreateFrame("Frame", nil, content)
+	overlay:SetAllPoints()
+	Box.Raise(overlay, content, Box.LEVEL.OVERLAY)
+	root.Overlay = overlay
 
 	root.Health = Bars.Create(root.StatsBox, true)
 	root.Power = Bars.Create(root.StatsBox, true)

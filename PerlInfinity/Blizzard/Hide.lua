@@ -15,18 +15,12 @@ local L = ns.L
 local hiddenParent = CreateFrame("Frame")
 hiddenParent:Hide()
 
-local function Block(frame, ...)
+-- Stops a frame from showing, and leaves its events alone.
+local function Filter(frame)
 	if not frame or frame.perlInfinityBlocked then
 		return
 	end
 	frame.perlInfinityBlocked = true
-	frame:UnregisterAllEvents()
-	for i = 1, select("#", ...) do
-		local child = frame[select(i, ...)]
-		if child and child.UnregisterAllEvents then
-			child:UnregisterAllEvents()
-		end
-	end
 	local blocked = false
 	if frame.SetRolesets then
 		blocked = pcall(frame.SetRolesets, frame, "alwaysBlocked")
@@ -39,6 +33,20 @@ local function Block(frame, ...)
 		frame:Hide()
 		frame:SetParent(hiddenParent)
 	end
+end
+
+local function Block(frame, ...)
+	if not frame or frame.perlInfinityBlocked then
+		return
+	end
+	frame:UnregisterAllEvents()
+	for i = 1, select("#", ...) do
+		local child = frame[select(i, ...)]
+		if child and child.UnregisterAllEvents then
+			child:UnregisterAllEvents()
+		end
+	end
+	Filter(frame)
 end
 
 local function HideCastBar(frame)
@@ -110,6 +118,18 @@ local PIECES = {
 	},
 	{ key = "party", wanted = function(db) return db.party.enabled end, hide = HideParty },
 	{ key = "raid", wanted = function(db) return db.raid.enabled end, hide = HideRaid },
+	{
+		key = "buffs",
+		wanted = function(db) return not db.player.keepBlizzardBuffs end,
+		hide = function() Block(BuffFrame) end,
+	},
+	{
+		key = "debuffs",
+		wanted = function(db) return not db.player.keepBlizzardDebuffs end,
+		-- Keeps its events: the game's center-screen warning for deadly debuffs
+		-- is driven by this display's updates.
+		hide = function() Filter(DebuffFrame) end,
+	},
 }
 
 local hidden = {} -- pieces hidden this session; only a reload brings them back

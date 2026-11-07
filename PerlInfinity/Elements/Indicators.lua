@@ -4,15 +4,17 @@
 -- Icons stay "shown" and use alpha for visibility, because several of these
 -- answers (raid marker, PvP flag, role outside your group) can be secret and
 -- SetShown refuses secret booleans.
+--
+-- They're all drawn on the frame's Overlay, in front of the boxes.
 local _, ns = ...
 
-local Secret, Media = ns.Secret, ns.Media
+local Secret, Media, Box = ns.Secret, ns.Media, ns.Box
 local L = ns.L
 
 local issecretvalue = issecretvalue
 
 local function Icon(frame, layer, size)
-	local icon = frame.Content:CreateTexture(nil, layer or "OVERLAY")
+	local icon = frame.Overlay:CreateTexture(nil, layer or "OVERLAY")
 	icon:SetSize(size, size)
 	icon:SetAlpha(0)
 	return icon
@@ -37,8 +39,10 @@ function Leader.Enabled(frame)
 end
 
 function Leader.Create(frame)
-	local leader = Icon(frame, "OVERLAY", frame.spec.layout == "Raid" and 10 or 14)
-	leader:SetPoint("CENTER", frame.NameBox, "TOPLEFT", 12, 0)
+	local raid = frame.spec.layout == "Raid"
+	local leader = Icon(frame, "OVERLAY", raid and 10 or 14)
+	-- A raid name strip is short, so the crown sits higher to keep the name clear.
+	leader:SetPoint("CENTER", frame.NameBox, "TOPLEFT", 12, raid and 2 or 0)
 	frame.LeaderIcon = leader
 
 	local looter = Icon(frame, "OVERLAY", frame.spec.layout == "Raid" and 10 or 14)
@@ -104,7 +108,7 @@ local RaidIcon = ns.Element("RaidIcon", {
 })
 
 function RaidIcon.Create(frame)
-	local icon = frame.Content:CreateTexture(nil, "OVERLAY")
+	local icon = frame.Overlay:CreateTexture(nil, "OVERLAY")
 	icon:SetTexture(Media.RAID_ICONS)
 	icon:SetAlpha(0)
 	frame.RaidIcon = icon
@@ -223,8 +227,28 @@ local StateIcon = ns.Element("StateIcon", {
 	events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_UPDATE_RESTING" },
 })
 
+-- While you rest, the game's own sleepy Zzz plays over your portrait and the
+-- frame breathes gold, as the game's player frame does.
+local REST_COLOR = { r = 1, g = 0.88, b = 0.25 }
+local REST_PULSE = 1.2 -- seconds from bright to dim
+
 function StateIcon.Enabled(frame)
 	return frame.kind == "player"
+end
+
+local function RestLoop(texture)
+	local loop = texture:CreateAnimationGroup()
+	loop:SetLooping("REPEAT")
+	-- The same 42 frames and timing as the game's player frame.
+	local flip = loop:CreateAnimation("FlipBook")
+	flip:SetDuration(1.5)
+	flip:SetFlipBookRows(7)
+	flip:SetFlipBookColumns(6)
+	flip:SetFlipBookFrames(42)
+	flip:SetFlipBookFrameWidth(0)
+	flip:SetFlipBookFrameHeight(0)
+	flip:SetSmoothing("NONE")
+	return loop
 end
 
 function StateIcon.Create(frame)
@@ -232,24 +256,69 @@ function StateIcon.Create(frame)
 	icon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
 	icon:SetPoint("RIGHT", frame.NameBox, "RIGHT", -4, 0)
 	frame.StateIcon = icon
+
+	local zzz = Icon(frame, "OVERLAY", 30)
+	zzz:SetAtlas("UI-HUD-UnitFrame-Player-Rest-Flipbook")
+	frame.RestIcon = zzz
+	frame.RestLoop = RestLoop(zzz)
+	frame.RestGlow = Box.Glow(frame.Content, frame.Content)
 end
 
-function StateIcon.Disable(frame)
-	Hide(frame.StateIcon)
+function StateIcon.Configure(frame, conf)
+	frame.restAnimation = conf.restAnimation
+	local zzz = frame.RestIcon
+	zzz:ClearAllPoints()
+	-- Above the portrait, where nothing else sits; the Zzz drift up from there.
+	local portrait = frame.PortraitBox
+	if portrait and portrait:IsShown() then
+		zzz:SetPoint("CENTER", portrait, "TOP", 6, 4)
+	else
+		zzz:SetPoint("CENTER", frame.NameBox, "TOPRIGHT", -16, 4)
+	end
 end
 
-function StateIcon.Update(frame)
+local function StopResting(frame)
+	frame.RestIcon:SetAlpha(0)
+	frame.RestLoop:Stop()
+	frame.RestGlow:Stop()
+end
+
+-- Without the animation, resting shows the game's still rest icon instead.
+local function ShowState(frame, inCombat, resting)
 	local icon = frame.StateIcon
-	local inCombat = UnitAffectingCombat("player")
+	local animate = resting and not inCombat and frame.restAnimation
 	if inCombat then
 		icon:SetTexCoord(0.5, 1, 0, 0.5)
 		icon:SetAlpha(1)
-	elseif IsResting() then
+	elseif resting and not animate then
 		icon:SetTexCoord(0, 0.5, 0, 0.421875)
 		icon:SetAlpha(1)
 	else
 		icon:SetAlpha(0)
 	end
+	if animate then
+		frame.RestIcon:SetAlpha(1)
+		if not frame.RestLoop:IsPlaying() then
+			frame.RestLoop:Play()
+		end
+		frame.RestGlow:Start(REST_COLOR, REST_PULSE)
+	else
+		StopResting(frame)
+	end
+end
+
+function StateIcon.Disable(frame)
+	Hide(frame.StateIcon)
+	StopResting(frame)
+end
+
+function StateIcon.Preview(frame, sample)
+	ShowState(frame, false, sample.resting)
+end
+
+function StateIcon.Update(frame)
+	local inCombat = UnitAffectingCombat("player")
+	ShowState(frame, inCombat, IsResting())
 	-- X-Perl turns your name red while you're in combat.
 	if inCombat then
 		frame.NameText:SetTextColor(1, 0.2, 0.2)
@@ -385,8 +454,10 @@ function Role.Enabled(frame)
 end
 
 function Role.Create(frame)
-	local icon = Icon(frame, "OVERLAY", frame.spec.layout == "Raid" and 10 or 14)
-	icon:SetPoint("CENTER", frame.NameBox, "BOTTOMLEFT", 6, 2)
+	local raid = frame.spec.layout == "Raid"
+	local icon = Icon(frame, "OVERLAY", raid and 10 or 14)
+	-- On a raid name strip it rides the corner so it covers less of the name.
+	icon:SetPoint("CENTER", frame.NameBox, "BOTTOMLEFT", raid and 2 or 6, raid and 1 or 2)
 	frame.RoleIcon = icon
 end
 
@@ -451,7 +522,7 @@ end
 local function AppendGroup(frame, unit)
 	local group = frame.groupNumberStyle == "name" and PlayerGroupNumber()
 	if group then
-		frame.NameText:SetFormattedText(L.NAME_WITH_GROUP, UnitName(unit), group)
+		frame.NameText:SetFormattedText(L.NAME_WITH_GROUP, Secret.UnitFullName(unit), group)
 	end
 end
 

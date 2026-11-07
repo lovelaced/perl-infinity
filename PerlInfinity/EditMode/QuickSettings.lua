@@ -115,9 +115,16 @@ local SETTINGS = {
 			Slider(L.EM_FRAME_WIDTH, "party.width", 0, 100, 5),
 			Dropdown(L.EM_DIRECTION, "party.direction", DIRECTIONS),
 			Slider(L.EM_SPACING, "party.spacing", 0, 60, 1),
+			Checkbox(L.EM_FIT_ICONS, "party.fitIcons"),
 			Checkbox(L.EM_SHOW_PORTRAIT, "party.portrait"),
 			Checkbox(L.EM_MIRROR, "party.mirror"),
 		}
+	end,
+	partytarget = function()
+		return { Slider(L.EM_FRAME_WIDTH, "party.targetWidth", 66, 200, 2) }
+	end,
+	partypet = function()
+		return { Slider(L.EM_FRAME_SIZE, "party.petScale", 0.5, 1.5, 0.05, Percent) }
 	end,
 	raid = function()
 		return {
@@ -147,7 +154,7 @@ local SETTINGS = {
 -- Which options page "More options" opens for each frame.
 local PAGES = {
 	targettarget = "small", targettargettarget = "small", focustarget = "small", pettarget = "small",
-	raidpets = "raid", tanks = "tools", healers = "tools", layouts = "tools", aggro = "general",
+	partytarget = "party", partypet = "party", raidpets = "raid", tanks = "tools", healers = "tools", layouts = "tools", aggro = "general",
 }
 
 function QuickSettings:Attach(mover)

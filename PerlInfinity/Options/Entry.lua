@@ -79,6 +79,10 @@ function commands.selftest(rest)
 	ns.SelfTest:Run(rest == "dev")
 end
 
+function commands.taintwatch()
+	ns.TaintWatch:Toggle()
+end
+
 function commands.log(rest)
 	if rest == "clear" then
 		ns.Log:Clear()

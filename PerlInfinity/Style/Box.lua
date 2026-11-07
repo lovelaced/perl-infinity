@@ -11,6 +11,23 @@ local Media, Colors = ns.Media, ns.Colors
 
 local boxes = setmetatable({}, { __mode = "k" })
 
+-- How far above a unit frame's Content each layer sits. Boxes are 1 above
+-- it, with their bars and text at 2 and the 3D portrait just above its box.
+-- The elite dragon goes over the name and stats boxes but under the
+-- portrait and level boxes, so it wraps the portrait the way X-Perl drew
+-- it. Outlines and other holders use 5 to 10, and Overlay holds the small
+-- icons (raid marker, leader crown, PvP badge) in front of all of it.
+Box.LEVEL = { DRAGON = 3, FRONT = 4, OVERLAY = 12 }
+
+function Box.Raise(frame, content, layer)
+	frame:SetFrameLevel(content:GetFrameLevel() + layer)
+end
+
+-- How far a glow reaches past the region it surrounds. The bright line sits
+-- 1 to 4 pixels inside the edge texture, so this puts it just outside the
+-- boxes' own edges.
+local GLOW_OUTSET = 5
+
 function Box.ApplyLook(box)
 	local look = ns.db.look
 	local background = Colors.Hex(look.background)
@@ -61,6 +78,42 @@ function Box:Init()
 			Box.ApplyLook(box)
 		end
 	end)
+end
+
+local function StartGlow(glow, color, seconds)
+	glow:SetBackdropBorderColor(color.r, color.g, color.b, 1)
+	glow.Fade:SetDuration(seconds)
+	glow:SetAlpha(1)
+	if not glow.Pulse:IsPlaying() then
+		glow.Pulse:Play()
+	end
+end
+
+local function StopGlow(glow)
+	glow.Pulse:Stop()
+	glow:SetAlpha(0)
+end
+
+-- A colored rim just outside `anchor`, drawn with X-Perl's thick bracket
+-- edge behind the boxes. glow:Start(color, seconds) makes it breathe, and
+-- glow:Stop() hides it. The game runs the animation, so a glowing frame
+-- costs no Lua time while it pulses.
+function Box.Glow(content, anchor)
+	local glow = CreateFrame("Frame", nil, content, "BackdropTemplate")
+	glow:SetPoint("TOPLEFT", anchor, "TOPLEFT", -GLOW_OUTSET, GLOW_OUTSET)
+	glow:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", GLOW_OUTSET, -GLOW_OUTSET)
+	glow:SetFrameLevel(content:GetFrameLevel())
+	glow:SetBackdrop(Media.GLOW_BACKDROP)
+	glow:SetAlpha(0)
+	local pulse = glow:CreateAnimationGroup()
+	pulse:SetLooping("BOUNCE")
+	local fade = pulse:CreateAnimation("Alpha")
+	fade:SetFromAlpha(1)
+	fade:SetToAlpha(0.2)
+	fade:SetSmoothing("IN_OUT")
+	glow.Pulse, glow.Fade = pulse, fade
+	glow.Start, glow.Stop = StartGlow, StopGlow
+	return glow
 end
 
 -- A thin colored outline around a region, in its own frame so the whole

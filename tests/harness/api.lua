@@ -265,6 +265,9 @@ function Api.buildEnum(h)
     for k, v in pairs(values) do t[k] = v end
     Constants[name] = t
   end
+  -- The game's documentation only lists number constants. Forever's NameUtil.lua
+  -- joins names with this one; specs read it from here rather than assume its value.
+  Constants.CharacterNameSeparatorConsts = { CHARACTERNAME_SURNAME_SEPARATOR = "-" }
   return Enum, Constants
 end
 

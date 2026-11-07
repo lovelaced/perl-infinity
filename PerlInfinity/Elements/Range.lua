@@ -114,7 +114,7 @@ end
 
 function Range.Create(frame)
 	if frame.spec.rangeHand then
-		local hand = frame.Content:CreateTexture(nil, "OVERLAY")
+		local hand = frame.Overlay:CreateTexture(nil, "OVERLAY")
 		hand:SetTexture(ns.Media.RANGE_HAND)
 		hand:SetSize(32, 13)
 		hand:SetPoint("BOTTOM", frame.NameBox, "TOP", 0, -4)

@@ -29,6 +29,8 @@ local NAMES = {
 	focus = L.EM_FOCUS,
 	focustarget = L.EM_FOCUS_TARGET,
 	party = L.EM_PARTY,
+	partytarget = L.EM_PARTY_TARGETS,
+	partypet = L.EM_PARTY_PETS,
 	raid = L.EM_RAID,
 	raidpets = L.EM_RAID_PETS,
 	tanks = L.EM_TANKS,
@@ -36,6 +38,12 @@ local NAMES = {
 	layouts = L.EM_LAYOUTS,
 	aggro = L.EM_AGGRO,
 }
+
+-- These follow another mover until you drag them away. "Reset position" in
+-- their Edit Mode popup reports this exact spot, which a drag can't land on, and
+-- that puts them back.
+local FOLLOWERS = { partytarget = true, partypet = true }
+local FOLLOW_AGAIN = { point = "TOPLEFT", x = 0.125, y = -0.125 }
 
 local function LayoutName()
 	return (LEM.GetActiveLayoutName and LEM:GetActiveLayoutName()) or PerlInfinityDB.global.lastLayout or FALLBACK_LAYOUT
@@ -48,11 +56,14 @@ end
 
 local function Place(mover)
 	local position = SavedPosition(mover.key)
-	if not position then
-		return
+	local follow = mover.follow
+	if position then
+		mover:ClearAllPoints()
+		mover:SetPoint(position.point, UIParent, position.point, position.x, position.y)
+	elseif follow then
+		mover:ClearAllPoints()
+		mover:SetPoint(follow.point, follow.target, follow.point, follow.x, follow.y)
 	end
-	mover:ClearAllPoints()
-	mover:SetPoint(position.point, UIParent, position.point, position.x, position.y)
 end
 
 local function ApplyScale(mover)
@@ -89,6 +100,18 @@ function Movers:SetSize(key, width, height)
 	Combat:Run(Combat:Key(mover, "size"), function()
 		mover:SetSize(width, height)
 	end)
+end
+
+function Movers:Rescale(key)
+	local mover = self:Get(key)
+	Combat:Run(Combat:Key(mover, "scale"), ApplyScale, mover)
+end
+
+-- Keeps a mover at this spot on `target` until you drag it somewhere else.
+function Movers:Follow(key, target, point, x, y)
+	local mover = self:Get(key)
+	mover.follow = { target = target, point = point, x = x, y = y }
+	Combat:Run(Combat:Key(mover, "place"), Place, mover)
 end
 
 -- Sizes a single frame's mover to the frame.
@@ -131,6 +154,11 @@ local function OnMoved(mover, layoutName, point, x, y)
 	layoutName = layoutName or LayoutName()
 	local positions = PerlInfinityDB.positions
 	positions[layoutName] = positions[layoutName] or {}
+	if FOLLOWERS[mover.key] and point == FOLLOW_AGAIN.point and x == FOLLOW_AGAIN.x and y == FOLLOW_AGAIN.y then
+		positions[layoutName][mover.key] = nil
+		Place(mover)
+		return
+	end
 	positions[layoutName][mover.key] = { point = point, x = x, y = y }
 end
 
@@ -139,7 +167,7 @@ function Movers:Register(mover)
 		return
 	end
 	mover.registered = true
-	local default = ns.DefaultPositions[mover.key] or { point = "CENTER", x = 0, y = 0 }
+	local default = FOLLOWERS[mover.key] and FOLLOW_AGAIN or ns.DefaultPositions[mover.key] or { point = "CENTER", x = 0, y = 0 }
 	LEM:AddFrame(mover, OnMoved, default, NAMES[mover.key] or mover.key)
 	ns.Snap.Attach(mover, function(frame, point, x, y)
 		OnMoved(frame, nil, point, x, y)
@@ -158,13 +186,13 @@ end
 -- Frames that ride along outside a mover
 ---------------------------------------------------------------------------
 
--- LibEditMode's handle covers the mover and nothing else. A party member's pet
--- and target, and attached raid pets, sit past that edge, so a click on one
--- reached the real button instead of Edit Mode. The handle grows to take them
--- in. Only the handle grows: the mover, and so the saved position, stays put.
+-- LibEditMode's handle covers the mover and nothing else. Attached raid pets
+-- sit past that edge, so a click on one reached the real button instead of Edit
+-- Mode. The handle grows to take them in. Only the handle grows: the mover, and
+-- so the saved position, stays put.
 --
--- It never shrinks while Edit Mode is open. Party targets come and go all the
--- time, and a box that followed them would jitter under your mouse.
+-- It never shrinks while Edit Mode is open. A box that followed frames coming
+-- and going would jitter under your mouse.
 
 -- `riders()` returns the frames hanging off this mover, or nil.
 function Movers:SetRiders(key, riders)

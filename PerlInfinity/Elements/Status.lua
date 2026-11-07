@@ -19,7 +19,7 @@ function Status.Create(frame)
 	afk:SetAlpha(0)
 	frame.AfkText = afk
 
-	local charm = frame.Content:CreateTexture(nil, "OVERLAY")
+	local charm = frame.Overlay:CreateTexture(nil, "OVERLAY")
 	charm:SetTexture(Media.WHITE)
 	charm:SetBlendMode("ADD")
 	charm:SetVertexColor(1, 0, 0.6, 0.35)

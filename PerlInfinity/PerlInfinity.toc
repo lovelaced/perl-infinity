@@ -102,5 +102,6 @@ Options\Entry.lua
 
 Diag\Probes.lua
 Diag\SelfTest.lua
+Diag\TaintWatch.lua
 
 Templates.xml

@@ -19,6 +19,17 @@ function Secret.Is(value)
 	return issecretvalue(value)
 end
 
+-- A unit's name the way the game writes it: first name and surname for players
+-- who have one. The game's own GetUnitName tests the surname, which addon code
+-- can't do when it's secret, but secret strings can still be joined.
+function Secret.UnitFullName(unit)
+	local name, surname = UnitName(unit)
+	if issecretvalue(surname) or (surname and surname ~= "") then
+		return name .. Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR .. surname
+	end
+	return name
+end
+
 -- Returns the value when it's readable, otherwise nil.
 function Secret.Plain(value)
 	if issecretvalue(value) then

@@ -56,7 +56,9 @@ function ComboPoints.Create(frame)
 	end
 	frame.ComboHolder = holder
 
+	-- Beside the level box, so it also sits in front of the elite dragon's wing.
 	local box = ns.Box.Create(frame.Content)
+	ns.Box.Raise(box, frame.Content, ns.Box.LEVEL.FRONT)
 	box:SetSize(26, 22)
 	local number = box:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	number:SetPoint("CENTER", 0, 1)

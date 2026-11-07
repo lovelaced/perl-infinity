@@ -82,20 +82,33 @@ end
 
 local BAR_TEXT = { "none", "current", "currentMax", "missing", "missingMax" }
 
--- Buff and debuff rows, shared by frame pages.
-local function AuraRows(section)
+-- Buff and debuff rows, shared by frame pages. A page can word its show buffs
+-- and show debuffs rows its own way by naming another set of labels.
+local function AuraRows(section, labels)
 	local auras = section .. ".auras"
+	labels = labels or "auras"
 	return {
 		Header("HEADER_AURAS"),
-		Check(auras .. ".buffs", { key = "auras.buffs" }),
+		Check(auras .. ".buffs", { key = labels .. ".buffs" }),
 		Drop(auras .. ".buffFilter", { "all", "mine", "castable" }, { key = "auras.buffFilter", parent = auras .. ".buffs" }),
-		Check(auras .. ".debuffs", { key = "auras.debuffs" }),
+		Check(auras .. ".debuffs", { key = labels .. ".debuffs" }),
 		Drop(auras .. ".debuffFilter", { "all", "mine", "dispellable" }, { key = "auras.debuffFilter", parent = auras .. ".debuffs" }),
 		Check(auras .. ".onTop", { key = "auras.onTop" }),
 		Slider(auras .. ".buffSize", 12, 40, 1, nil, { key = "auras.buffSize", parent = auras .. ".buffs" }),
 		Slider(auras .. ".debuffSize", 12, 48, 1, nil, { key = "auras.debuffSize", parent = auras .. ".debuffs" }),
 		Slider(auras .. ".rows", 1, 6, 1, nil, { key = "auras.rows" }),
 	}
+end
+
+-- The game's own displays and the icons on your frame are separate choices, so
+-- you can have either, both or neither, for buffs and debuffs alike.
+local function PlayerAuraRows()
+	local rows = AuraRows("player", "player.auras")
+	table.insert(rows, 2, Check("player.keepBlizzardBuffs"))
+	table.insert(rows, 3, Check("player.keepBlizzardDebuffs"))
+	-- After the buff filter, before the debuff switch.
+	table.insert(rows, 6, Check("player.auras.weaponEnchants"))
+	return rows
 end
 
 local function Append(list, more)
@@ -235,13 +248,14 @@ Pages.list = {
 		group = "frames",
 		preview = "player",
 		sections = { "player" },
-		rows = Append(Append({
+		rows = Append(Append(Append({
 			Check("player.enabled"),
 		}, SizeRows("player")), {
 			Header("HEADER_LAYOUT"),
 			Check("player.portrait", { key = "frame.portrait" }),
 			Check("player.tallPortrait", { parent = "player.portrait" }),
 			Drop("player.groupNumber", { "hidden", "above", "name" }),
+			Check("player.restAnimation"),
 			Header("HEADER_BARS"),
 			Drop("player.barText", BAR_TEXT, { key = "frame.barText" }),
 			Check("player.percent", { key = "frame.percent" }),
@@ -254,7 +268,7 @@ Pages.list = {
 			Check("player.castBar", { key = "frame.castBar" }),
 			Check("player.castLatency", { parent = "player.castBar" }),
 			Check("player.keepBlizzardCastBar", { parent = "player.castBar" }),
-		}),
+		}), PlayerAuraRows()),
 	},
 	{
 		key = "pet",
@@ -287,7 +301,7 @@ Pages.list = {
 		}, SizeRows("target")), {
 			Header("HEADER_LAYOUT"),
 			Check("target.portrait", { key = "frame.portrait" }),
-			Drop("target.elite", { "text", "dragon", "none" }, { key = "frame.elite" }),
+			Drop("target.elite", { "dragon", "text", "none" }, { key = "frame.elite" }),
 			Check("target.creatureType", { key = "frame.creatureType" }),
 			{ type = "multi", path = "target.combo", choices = { "dots", "number", "fill" }, shownIf = PlayerClassIs("ROGUE", "DRUID") },
 			Drop("target.comboPosition", { "above", "below", "left", "right" }, { shownIf = PlayerClassIs("ROGUE", "DRUID") }),
@@ -333,7 +347,7 @@ Pages.list = {
 		}, SizeRows("focus")), {
 			Header("HEADER_LAYOUT"),
 			Check("focus.portrait", { key = "frame.portrait" }),
-			Drop("focus.elite", { "text", "dragon", "none" }, { key = "frame.elite" }),
+			Drop("focus.elite", { "dragon", "text", "none" }, { key = "frame.elite" }),
 			Check("focus.creatureType", { key = "frame.creatureType" }),
 			Drop("focus.threat", { "off", "gauge", "bar" }, { key = "frame.threat" }),
 			Header("HEADER_BARS"),
@@ -358,6 +372,7 @@ Pages.list = {
 			Header("HEADER_LAYOUT"),
 			Drop("party.direction", { "down", "up", "right", "left" }, { key = "frame.direction" }),
 			Slider("party.spacing", 0, 60, 1, nil, { key = "frame.spacing" }),
+			Check("party.fitIcons"),
 			Check("party.mirror"),
 			Check("party.portrait", { key = "frame.portrait" }),
 			Check("party.names"),

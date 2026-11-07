@@ -28,6 +28,7 @@ end
 local function BuildButtons(frame)
 	local row = CreateFrame("Frame", nil, frame.Content)
 	row:SetSize(SLOTS * (SIZE + 2), SIZE)
+	row.height = SIZE
 	frame.TotemRow = row
 	frame.TotemButtons = {}
 	for slot = 1, SLOTS do

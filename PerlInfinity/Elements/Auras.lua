@@ -136,7 +136,11 @@ function AuraHost.Get(frame, name)
 	local container = CreateFrame("AuraContainer", nil, frame.Content, "CustomAuraContainerTemplate")
 	container.groups = {}
 	container.slots = {}
+	container.sizes = {}
 	containers[name] = container
+	-- In Edit Mode the game can swap in made-up auras. Our Edit Mode samples
+	-- draw their own icons, so real frames keep showing real auras and tooltips.
+	container:SetEditModePreviewEnabled(false)
 	if frame.unit then
 		container:SetUnit(frame.unit)
 	end
@@ -324,6 +328,22 @@ local function Initializer(harmful, mine, stealable)
 	return initialize
 end
 
+-- The game places aura buttons but never sizes them: a layout's elementWidth
+-- only sets how much room a button takes up. Buttons can be made at any time,
+-- even mid-fight, so each one reads the group's current size as it's made.
+local function SizedInitializer(container, group, cancelable)
+	local style = Initializer(group.harmful, group.mine, group.stealable)
+	local key = group.key
+	return function(button)
+		local size = container.sizes[key]
+		button:SetSize(size, size)
+		style(button)
+		if cancelable then
+			button:SetCancelAuraButtons("RightButtonUp")
+		end
+	end
+end
+
 ---------------------------------------------------------------------------
 -- Which groups a frame shows (pure; see tests)
 ---------------------------------------------------------------------------
@@ -339,12 +359,17 @@ end
 -- frames that only ever show friends (you, your pet, your party) skip the
 -- groups that only matter on enemies: buffs you can remove, and your own
 -- debuffs shown larger.
+--
+-- Each aura has to land in exactly one group. "PLAYER" and "!PLAYER" split
+-- them cleanly into yours and everyone else's. The isFromPlayerOrPlayerPet
+-- field can't do that: it's about any player, not just you.
 function AuraHost.Groups(auras, global, hostile)
 	local groups = {}
 	local function Add(key, filter, candidates, size, harmful, mine, stealable)
 		groups[#groups + 1] = {
 			key = key, filter = filter, candidates = candidates, size = Round(size),
 			harmful = harmful, mine = mine, stealable = stealable,
+			notMine = filter:find("!PLAYER", 1, true) ~= nil,
 		}
 	end
 
@@ -360,11 +385,12 @@ function AuraHost.Groups(auras, global, hostile)
 			if steal then
 				Add("stealable", "HELPFUL", { isStealable = true }, bigSize, false, false, true)
 			end
+			local notStealable = steal and { isStealable = false } or nil
 			if global.bigOwn then
-				Add("buffsMine", "HELPFUL|PLAYER", steal and { isStealable = false } or nil, bigSize, false, true, false)
-				Add("buffs", "HELPFUL", { isFromPlayerOrPlayerPet = false, isStealable = steal and false or nil }, size, false, false, false)
+				Add("buffsMine", "HELPFUL|PLAYER", notStealable, bigSize, false, true, false)
+				Add("buffs", "HELPFUL|!PLAYER", notStealable, size, false, false, false)
 			else
-				Add("buffs", "HELPFUL", steal and { isStealable = false } or nil, size, false, false, false)
+				Add("buffs", "HELPFUL", notStealable, size, false, false, false)
 			end
 		end
 	end
@@ -379,7 +405,7 @@ function AuraHost.Groups(auras, global, hostile)
 			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
 		elseif global.bigOwn and hostile then
 			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
-			Add("debuffs", "HARMFUL", { isFromPlayerOrPlayerPet = false }, size, true, false, false)
+			Add("debuffs", "HARMFUL|!PLAYER", nil, size, true, false, false)
 		else
 			Add("debuffs", "HARMFUL", nil, size, true, false, false)
 		end
@@ -391,6 +417,50 @@ function AuraHost.Groups(auras, global, hostile)
 end
 
 local ALL_GROUPS = { "stealable", "buffsMine", "buffs", "debuffsMine", "debuffs", "raid" }
+
+-- Space between icons, and between icons and the frame.
+local ICON_GAP = 2
+
+-- How far a row of icons can run: from the stats box, where it starts, to the
+-- frame's right edge. With the portrait on the left, that's less than the
+-- frame's full width.
+local function LineWidth(rects)
+	return rects.width - rects.statsBox.x
+end
+
+local function MaxIcons(group, lineWidth, rows)
+	local perRow = math.max(1, math.floor(lineWidth / math.max(group.size + ICON_GAP, 1)))
+	return group.max or perRow * rows
+end
+
+-- How much room a frame's icons need with every group full, laid out the way
+-- the game's flow layout does it. Frames can't resize to fit their auras, so
+-- the party leaves this much space between members.
+function AuraHost.RoomNeeded(groups, rects, rows)
+	local lineWidth = LineWidth(rects)
+	local height, lineHeight, used = 0, 0, 0
+	local function NextLine()
+		if lineHeight > 0 then
+			height = height + lineHeight + ICON_GAP
+		end
+		lineHeight, used = 0, 0
+	end
+	for _, group in ipairs(groups) do
+		local count = MaxIcons(group, lineWidth, rows)
+		if group.newLine and count > 0 then
+			NextLine()
+		end
+		for _ = 1, count do
+			if used > 0 and used + group.size > lineWidth then
+				NextLine()
+			end
+			used = used + group.size + ICON_GAP
+			lineHeight = math.max(lineHeight, group.size)
+		end
+	end
+	local total = height + lineHeight
+	return total > 0 and total + ICON_GAP * 2 or 0
+end
 
 ---------------------------------------------------------------------------
 -- The element
@@ -406,7 +476,8 @@ function Auras.Enabled(frame, conf)
 	if frame.spec.layout == "Raid" then
 		return conf.icons ~= "none"
 	end
-	return conf.auras ~= nil and (conf.auras.buffs or conf.auras.debuffs)
+	local auras = conf.auras
+	return auras ~= nil and (auras.buffs or auras.debuffs or auras.weaponEnchants)
 end
 
 function Auras.Create(frame)
@@ -421,6 +492,12 @@ local function RaidGroups(conf)
 		filter = conf.iconsFilter and "HARMFUL|RAID" or "HARMFUL"
 	end
 	return { { key = "raid", filter = filter, size = 10, harmful = conf.icons == "debuffs", max = 8 } }
+end
+
+-- Shaman totems sit right below your frame, so icons going down start under them.
+local function TotemRowHeight(frame)
+	local row = frame.TotemRow
+	return row and row:IsShown() and row.height + 2 or 0
 end
 
 local function PlaceContainer(frame, conf, container)
@@ -443,10 +520,42 @@ local function PlaceContainer(frame, conf, container)
 		container:SetFlowLayoutAnchorPoint("BOTTOMLEFT")
 		container:SetFlowLayoutGrowthDirection(FlowRight, FlowUp)
 	else
-		container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -2)
+		container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -2 - TotemRowHeight(frame))
 		container:SetFlowLayoutAnchorPoint("TOPLEFT")
 		container:SetFlowLayoutGrowthDirection(FlowRight, FlowDown)
 	end
+end
+
+-- Temporary weapon enchants, like poisons, live on your own frame only. The game
+-- keeps them apart from auras: each hand has its own button, placed in the same
+-- flow, ahead of your buffs.
+local ENCHANT_SLOTS = { "MainHand", "OffHand", "Ranged" }
+local ENCHANT_GROUP = { key = "enchants", harmful = false, mine = true, stealable = false }
+
+local function EnchantSize(auras)
+	return Round(ns.db.auras.bigOwn and auras.buffSize * BIG or auras.buffSize)
+end
+
+local function ConfigureEnchants(conf, container)
+	local wanted = conf.auras.weaponEnchants == true
+	if not (wanted or container.enchantSlots) then
+		return
+	end
+	container.enchantSlots = container.enchantSlots or {}
+	container.sizes.enchants = EnchantSize(conf.auras)
+	Combat:Run(Combat:Key(container, "enchants"), function()
+		local initialize = SizedInitializer(container, ENCHANT_GROUP, true)
+		for _, name in ipairs(ENCHANT_SLOTS) do
+			local slot = AuraContainerItemEnchantmentSlot[name]
+			if wanted and not container.enchantSlots[slot] then
+				container:AddItemEnchantment(slot, { initializeFrame = initialize })
+				container.enchantSlots[slot] = true
+			end
+			if container.enchantSlots[slot] then
+				container:SetItemEnchantmentEnabled(slot, wanted)
+			end
+		end
+	end)
 end
 
 function Auras.Configure(frame, conf)
@@ -460,23 +569,28 @@ function Auras.Configure(frame, conf)
 	end
 
 	-- What to show changes right away; filters are evaluated by the game.
-	local lineWidth = frame.rects.width
+	local lineWidth = LineWidth(frame.rects)
 	local rows = conf.auras and conf.auras.rows or 1
 	local used = {}
+	-- Only your own buffs can be canceled, so only your own frame offers it.
+	local yours = frame.kind == "player"
 	for _, group in ipairs(frame.auraGroups) do
-		local initialize = Initializer(group.harmful, group.mine, group.stealable)
+		container.sizes[group.key] = group.size
+		local initialize = SizedInitializer(container, group, yours and not group.harmful)
 		if AuraHost.EnsureGroup(container, group.key, group.filter, initialize) then
 			used[group.key] = true
-			local perRow = math.max(1, math.floor(lineWidth / math.max(group.size + 2, 1)))
 			container:SetAuraGroupFilterString(group.key, group.filter)
 			container:SetAuraGroupCandidateFilters(group.key, group.candidates)
-			container:SetAuraGroupMaxFrameCount(group.key, group.max or perRow * rows)
+			container:SetAuraGroupMaxFrameCount(group.key, MaxIcons(group, lineWidth, rows))
 		end
 	end
 	for _, key in ipairs(ALL_GROUPS) do
 		if container.groups[key] and not used[key] then
 			container:SetAuraGroupMaxFrameCount(key, 0)
 		end
+	end
+	if yours then
+		ConfigureEnchants(conf, container)
 	end
 	container:SetEnabled(true)
 
@@ -487,34 +601,51 @@ end
 
 function AuraHost.ApplyLayout(frame, conf, container)
 	PlaceContainer(frame, conf, container)
-	container:SetFlowLayoutMaximumLineSize(frame.rects.width)
+	container:SetFlowLayoutMaximumLineSize(LineWidth(frame.rects))
 	for index, group in ipairs(frame.auraGroups) do
 		if container.groups[group.key] then
 			container:SetAuraGroupLayout(group.key, {
 				elementWidth = group.size,
 				elementHeight = group.size,
-				elementSpacing = 2,
-				lineSpacing = 2,
+				elementSpacing = ICON_GAP,
+				lineSpacing = ICON_GAP,
 				forceNewLine = group.newLine or false,
 				layoutIndex = index,
 			})
 		end
 	end
+	if container.enchantSlots then
+		local size = container.sizes.enchants
+		container:SetItemEnchantmentLayout({
+			elementWidth = size,
+			elementHeight = size,
+			elementSpacing = ICON_GAP,
+			lineSpacing = ICON_GAP,
+		})
+	end
 	AuraHost.RestyleButtons(container)
+end
+
+local function RestyleButton(button, size)
+	if button and button.Cooldown then
+		button:SetSize(size, size)
+		ApplyButtonPrefs(button)
+		button:SetDurationText(button.Time, {
+			textColor = { curve = CountdownCurve(ns.db.auras.countdownStart), property = RemainingDuration },
+		})
+	end
 end
 
 function AuraHost.RestyleButtons(container)
 	for key in pairs(container.groups) do
 		local count = container:GetAuraGroupFrameCount(key)
+		local size = container.sizes[key]
 		for i = 1, count do
-			local button = container:GetAuraGroupFrame(key, i)
-			if button and button.Cooldown then
-				ApplyButtonPrefs(button)
-				button:SetDurationText(button.Time, {
-					textColor = { curve = CountdownCurve(ns.db.auras.countdownStart), property = RemainingDuration },
-				})
-			end
+			RestyleButton(container:GetAuraGroupFrame(key, i), size)
 		end
+	end
+	for slot in pairs(container.enchantSlots or {}) do
+		RestyleButton(container:GetItemEnchantmentFrame(slot), container.sizes.enchants)
 	end
 end
 
@@ -525,6 +656,9 @@ function Auras.Disable(frame)
 			if container.groups[key] then
 				container:SetAuraGroupMaxFrameCount(key, 0)
 			end
+		end
+		for slot in pairs(container.enchantSlots or {}) do
+			container:SetItemEnchantmentEnabled(slot, false)
 		end
 	end
 	if frame.PreviewAuras then
@@ -541,23 +675,18 @@ end
 
 -- Mirrors the filter strings for sample auras in the options window.
 local function SampleMatches(group, aura)
-	if (aura.harmful and true or false) ~= (group.harmful and true or false) then
+	if aura.enchant or (aura.harmful and true or false) ~= (group.harmful and true or false) then
 		return false
 	end
 	if group.key == "stealable" then
 		return aura.stealable and true or false
 	end
-	if group.mine and not aura.mine then
+	if (group.mine and not aura.mine) or (group.notMine and aura.mine) then
 		return false
 	end
 	local candidates = group.candidates
-	if candidates then
-		if candidates.isFromPlayerOrPlayerPet == false and aura.mine then
-			return false
-		end
-		if candidates.isStealable == false and aura.stealable then
-			return false
-		end
+	if candidates and candidates.isStealable == false and aura.stealable then
+		return false
 	end
 	return true
 end
@@ -574,38 +703,48 @@ function Auras.Preview(frame, sample)
 	end
 	local conf = frame:Conf()
 	local list = sample.auras or {}
-	local x, y, rowHeight = 2, -2, 0
-	local lineWidth = frame.rects.width
+	local x, y, rowHeight = ICON_GAP, -ICON_GAP - TotemRowHeight(frame), 0
+	local lineWidth = LineWidth(frame.rects)
 	local count = 0
+
+	local function Draw(aura, size)
+		count = count + 1
+		local icon = icons[count]
+		if not icon then
+			icon = frame.Content:CreateTexture(nil, "ARTWORK")
+			icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+			icons[count] = icon
+		end
+		if x + size > lineWidth then
+			x, y, rowHeight = ICON_GAP, y - rowHeight - ICON_GAP, 0
+		end
+		icon:SetTexture(C_Spell.GetSpellTexture(aura.spell) or 134400)
+		icon:SetSize(size, size)
+		icon:ClearAllPoints()
+		if frame.spec.layout ~= "Raid" and conf.auras.onTop then
+			icon:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", x, -y)
+		else
+			icon:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", x, y)
+		end
+		icon:Show()
+		x = x + size + ICON_GAP
+		rowHeight = math.max(rowHeight, size)
+	end
+
+	if conf.auras and conf.auras.weaponEnchants then
+		for _, aura in ipairs(list) do
+			if aura.enchant then
+				Draw(aura, EnchantSize(conf.auras))
+			end
+		end
+	end
 	for _, group in ipairs(frame.auraGroups) do
-		if group.newLine and x > 2 then
-			x, y, rowHeight = 2, y - rowHeight - 2, 0
+		if group.newLine and x > ICON_GAP then
+			x, y, rowHeight = ICON_GAP, y - rowHeight - ICON_GAP, 0
 		end
 		for _, aura in ipairs(list) do
-			local matches = SampleMatches(group, aura)
-			if matches then
-				count = count + 1
-				local icon = icons[count]
-				if not icon then
-					icon = frame.Content:CreateTexture(nil, "ARTWORK")
-					icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-					icons[count] = icon
-				end
-				if x + group.size > lineWidth then
-					x, y, rowHeight = 2, y - rowHeight - 2, 0
-				end
-				icon:SetTexture(C_Spell.GetSpellTexture(aura.spell) or 134400)
-				icon:SetSize(group.size, group.size)
-				icon:ClearAllPoints()
-				local anchor = frame.StatsBox
-				if frame.spec.layout ~= "Raid" and conf.auras.onTop then
-					icon:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", x, -y)
-				else
-					icon:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", x, y)
-				end
-				icon:Show()
-				x = x + group.size + 2
-				rowHeight = math.max(rowHeight, group.size)
+			if SampleMatches(group, aura) then
+				Draw(aura, group.size)
 			end
 		end
 	end

@@ -1,14 +1,12 @@
 -- The unit's name, colored by class for players and by reaction for
 -- creatures. Names of creatures can be secret inside instances; they go
--- straight into SetText, and the text is never measured.
---
--- On Forever, UnitName's second value is a surname rather than a realm, so
--- only the first name is shown.
+-- straight into SetText, and the text is never measured. A name too long for
+-- its box gets cut off with dots by the font string.
 local _, ns = ...
 
-local Colors = ns.Colors
+local Colors, Secret = ns.Colors, ns.Secret
 
-local UnitName, UnitIsPlayer, UnitClass = UnitName, UnitIsPlayer, UnitClass
+local UnitIsPlayer, UnitClass = UnitIsPlayer, UnitClass
 
 local Name = ns.Element("Name", {
 	unitEvents = { "UNIT_NAME_UPDATE", "UNIT_FACTION", "UNIT_FLAGS" },
@@ -42,7 +40,7 @@ local function ColorName(frame, unit)
 end
 
 function Name.Update(frame, unit)
-	frame.NameText:SetText((UnitName(unit)))
+	frame.NameText:SetText(Secret.UnitFullName(unit))
 	ColorName(frame, unit)
 	if frame.OnNameUpdated then
 		frame:OnNameUpdated(unit)

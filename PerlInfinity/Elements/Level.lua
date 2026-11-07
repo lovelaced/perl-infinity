@@ -1,8 +1,8 @@
--- Level box, class icon, and (on target and focus) the elite marker and
--- creature type. None of these values are secret.
+-- Level box, class icon, and (on target and focus) the marks for elites,
+-- rares and bosses, plus the creature type. None of these values are secret.
 local _, ns = ...
 
-local Media, Classes = ns.Media, ns.Classes
+local Media, Classes, Box = ns.Media, ns.Classes, ns.Box
 local L = ns.L
 
 local UnitLevel, UnitClassification, UnitIsPlayer, UnitClass, UnitCreatureType =
@@ -14,40 +14,106 @@ local Level = ns.Element("Level", {
 })
 
 local ELITE = { worldboss = true, elite = true, rareelite = true }
-local CLASSIFICATION_TEXT = {
-	worldboss = L.CLASS_BOSS,
-	elite = L.CLASS_ELITE,
-	rareelite = L.CLASS_RARE_ELITE,
-	rare = L.CLASS_RARE,
+
+local GOLD = { r = 1, g = 0.82, b = 0 }
+local SILVER = { r = 1, g = 1, b = 1 }
+local ICE = { r = 0.55, g = 0.85, b = 1 }
+local BOSS_RED = { r = 1, g = 0.35, b = 0.25 }
+
+-- How each kind of enemy is marked. Elites get a gold dragon and gold edges.
+-- Rares are easy to walk past, so they also get a label in every style and
+-- an icy glow that pulses around the frame.
+local MARKS = {
+	elite = { label = L.CLASS_ELITE, art = Media.ELITE, tint = GOLD, edge = GOLD },
+	worldboss = { label = L.CLASS_BOSS, art = Media.ELITE, tint = GOLD, edge = BOSS_RED, alwaysLabel = true },
+	rare = { label = L.CLASS_RARE, art = Media.RARE, tint = SILVER, edge = ICE, alwaysLabel = true, pulse = true },
+	rareelite = { label = L.CLASS_RARE_ELITE, art = Media.ELITE, tint = SILVER, edge = ICE, alwaysLabel = true, pulse = true },
 }
+
+-- Boxes whose edges take the mark's color.
+local EDGED = { "NameBox", "StatsBox", "PortraitBox", "LevelBox", "TypeBox", "ComboBox" }
+
+local DRAGON_SIZE = 128
+-- The dragon art is grey; a second copy added on top brings the tint up
+-- from dull brass to a bright gold or silver.
+local SHINE = 0.8
+local RARE_PULSE = 0.6 -- seconds from bright to dim
+local TAB_PADDING = 16
 
 function Level.Enabled(frame)
 	return frame.LevelBox ~= nil
+end
+
+local function CreateMarks(frame)
+	local content = frame.Content
+
+	local holder = CreateFrame("Frame", nil, content)
+	holder:SetAllPoints()
+	Box.Raise(holder, content, Box.LEVEL.DRAGON)
+	local dragon = holder:CreateTexture(nil, "ARTWORK")
+	dragon:SetSize(DRAGON_SIZE, DRAGON_SIZE)
+	local shine = holder:CreateTexture(nil, "OVERLAY")
+	shine:SetBlendMode("ADD")
+	shine:SetAlpha(SHINE)
+	shine:SetAllPoints(dragon)
+	holder:Hide()
+	frame.Dragon, frame.DragonArt, frame.DragonShine = holder, dragon, shine
+
+	-- A small tab above the name: "Rare", "Elite", "Boss".
+	local tab = Box.Create(content)
+	Box.Raise(tab, content, Box.LEVEL.FRONT)
+	tab:SetHeight(18)
+	local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	text:SetPoint("CENTER", 0, 1)
+	tab.Text = text
+	tab:Hide()
+	frame.MarkTab = tab
+
+	frame.MarkGlow = Box.Glow(content, content)
+
+	local typeBox = Box.Create(content)
+	Box.Raise(typeBox, content, Box.LEVEL.FRONT)
+	typeBox:SetSize(68, 22)
+	local typeText = typeBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	typeText:SetPoint("CENTER", 0, 1)
+	typeText:SetWordWrap(false)
+	typeText:SetWidth(64)
+	typeBox.Text = typeText
+	frame.TypeBox = typeBox
 end
 
 function Level.Create(frame)
 	local icon = frame.Content:CreateTexture(nil, "ARTWORK")
 	icon:SetTexture(Classes.ICON_TEXTURE)
 	frame.ClassIcon = icon
-
 	if frame.spec.eliteMarker then
-		-- The X-Perl dragon wraps the portrait for elites, bosses and rares.
-		local dragon = frame.Content:CreateTexture(nil, "OVERLAY")
-		dragon:SetSize(128, 128)
-		frame.EliteDragon = dragon
-
-		local classification = frame.Content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		frame.ClassificationText = classification
-
-		local typeBox = ns.Box.Create(frame.Content)
-		typeBox:SetSize(68, 22)
-		local typeText = typeBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		typeText:SetPoint("CENTER", 0, 1)
-		typeText:SetWordWrap(false)
-		typeText:SetWidth(64)
-		typeBox.Text = typeText
-		frame.TypeBox = typeBox
+		CreateMarks(frame)
 	end
+end
+
+local function ConfigureMarks(frame, conf)
+	local portrait = frame.PortraitBox
+	local hasPortrait = portrait ~= nil and portrait:IsShown()
+	local anchor = hasPortrait and portrait or frame.NameBox
+
+	-- Head over the portrait's top edge, tail under its bottom, wing out
+	-- past its right side and below the level box.
+	frame.DragonArt:ClearAllPoints()
+	frame.DragonArt:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 37, 27)
+	frame.MarkTab:ClearAllPoints()
+	frame.MarkTab:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 8, -3)
+	frame.TypeBox:ClearAllPoints()
+	frame.TypeBox:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, 2)
+	frame.TypeBox:SetShown(conf.creatureType)
+
+	-- With no portrait there's nothing for the dragon to wrap, so the label
+	-- stands in for it.
+	local style = conf.elite
+	if style == "dragon" and not hasPortrait then
+		style = "text"
+	end
+	frame.eliteStyle = style
+	frame.mark = false -- draw the mark again on the next update
 end
 
 function Level.Configure(frame, conf)
@@ -67,17 +133,56 @@ function Level.Configure(frame, conf)
 		icon:Hide()
 	end
 
-	if frame.EliteDragon then
-		local portrait = frame.PortraitBox
-		local anchor = (portrait and portrait:IsShown()) and portrait or frame.NameBox
-		frame.EliteDragon:ClearAllPoints()
-		frame.EliteDragon:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 37, 13)
-		frame.ClassificationText:ClearAllPoints()
-		frame.ClassificationText:SetPoint("BOTTOM", anchor, "BOTTOM", 0, 5)
-		frame.eliteStyle = conf.elite
-		frame.TypeBox:ClearAllPoints()
-		frame.TypeBox:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, 2)
-		frame.TypeBox:SetShown(conf.creatureType)
+	if frame.spec.eliteMarker then
+		ConfigureMarks(frame, conf)
+	end
+end
+
+local function SetEdges(frame, color)
+	for _, key in ipairs(EDGED) do
+		local box = frame[key]
+		if box then
+			Box.SetBorderColor(box, color)
+		end
+	end
+end
+
+local function ShowMark(frame, classification, isPlayer)
+	local style = frame.eliteStyle
+	local mark = not isPlayer and style ~= "none" and MARKS[classification] or nil
+	if mark == frame.mark then
+		return
+	end
+	frame.mark = mark
+	SetEdges(frame, mark and mark.edge)
+
+	if mark and style == "dragon" then
+		local tint = mark.tint
+		frame.DragonArt:SetTexture(mark.art)
+		frame.DragonArt:SetVertexColor(tint.r, tint.g, tint.b)
+		frame.DragonShine:SetTexture(mark.art)
+		frame.DragonShine:SetVertexColor(tint.r, tint.g, tint.b)
+		frame.Dragon:Show()
+	else
+		frame.Dragon:Hide()
+	end
+
+	local tab = frame.MarkTab
+	if mark and (style == "text" or mark.alwaysLabel) then
+		local edge = mark.edge
+		tab.Text:SetText(mark.label)
+		tab.Text:SetTextColor(edge.r, edge.g, edge.b)
+		tab:SetWidth(tab.Text:GetStringWidth() + TAB_PADDING)
+		Box.SetBorderColor(tab, edge)
+		tab:Show()
+	else
+		tab:Hide()
+	end
+
+	if mark and mark.pulse then
+		frame.MarkGlow:Start(mark.edge, RARE_PULSE)
+	else
+		frame.MarkGlow:Stop()
 	end
 end
 
@@ -106,22 +211,8 @@ local function ShowLevel(frame, level, classification, isPlayer, classToken)
 		icon:Hide()
 	end
 
-	if frame.EliteDragon then
-		local dragon = frame.EliteDragon
-		local style = frame.eliteStyle
-		local label = not isPlayer and CLASSIFICATION_TEXT[classification]
-		if style == "dragon" and label then
-			dragon:SetTexture(classification == "rare" and Media.RARE or Media.ELITE)
-			if classification == "rareelite" then
-				dragon:SetVertexColor(1, 1, 1)
-			else
-				dragon:SetVertexColor(1, 0.82, 0)
-			end
-			dragon:Show()
-		else
-			dragon:Hide()
-		end
-		frame.ClassificationText:SetText(style == "text" and label or "")
+	if frame.spec.eliteMarker then
+		ShowMark(frame, classification, isPlayer)
 	end
 end
 

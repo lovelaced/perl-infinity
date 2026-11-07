@@ -8,6 +8,7 @@
 --   'delete': (layoutName)
 -- Test helpers (on h.lem): enter(), exit(), switchLayout(name), move(frame, point, x, y),
 -- drag(frame, point, x, y) (through the drag handle, so snapping runs),
+-- resetPosition(frame),
 -- createLayout(name, source), renameLayout(old, new), deleteLayout(name),
 -- changeSetting(frame, settingName, value), clickButton(frame, text).
 
@@ -153,6 +154,15 @@ local function new(h)
     frame:SetPoint(point, env.UIParent, point, x, y)
     call(f.callback, "position", frame, layoutName(), point, x, y)
     return true
+  end
+  -- The "Reset position" button in a frame's Edit Mode popup.
+  function lib:resetPosition(frame)
+    local f = lib.frames[frame]
+    if not f then error("resetPosition: frame not registered with LibEditMode", 2) end
+    local pos = f.default
+    frame:ClearAllPoints()
+    frame:SetPoint(pos.point, env.UIParent, pos.point, pos.x, pos.y)
+    call(f.callback, "position", frame, layoutName(), pos.point, pos.x, pos.y)
   end
   function lib:createLayout(name, source)
     table.insert(h.editModeLayouts.layouts, { layoutName = name, layoutType = 1 })

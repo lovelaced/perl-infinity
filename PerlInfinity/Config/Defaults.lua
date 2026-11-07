@@ -143,13 +143,18 @@ ns.Defaults = {
 		scale = 0.9,
 		tallPortrait = false,
 		groupNumber = "above", -- hidden, above, name
+		restAnimation = true,
 		xpBar = false,
 		xpRemaining = false,
 		repBar = false,
 		druidMana = true,
 		castLatency = false,
 		keepBlizzardCastBar = false,
+		keepBlizzardBuffs = true,
+		keepBlizzardDebuffs = true,
 		totems = true,
+		-- The game already shows your own buffs and debuffs, so these start off.
+		auras = AuraDefaults({ buffs = false, debuffs = false, weaponEnchants = false }),
 	}),
 
 	pet = UnitDefaults({
@@ -162,7 +167,7 @@ ns.Defaults = {
 	}),
 
 	target = UnitDefaults({
-		elite = "text", -- text, dragon, none
+		elite = "dragon", -- dragon, text, none
 		creatureType = true,
 		reactionBox = false,
 		combo = 7, -- bit 1 dots, bit 2 number, bit 3 fill
@@ -172,7 +177,7 @@ ns.Defaults = {
 	}),
 
 	focus = UnitDefaults({
-		elite = "text",
+		elite = "dragon",
 		creatureType = true,
 		reactionBox = false,
 		threat = "off",
@@ -197,6 +202,7 @@ ns.Defaults = {
 		inRaid = "keep", -- keep, hide, smallRaid
 		direction = "down", -- down, up, right, left
 		spacing = 23,
+		fitIcons = true, -- the gap grows so icons don't cover the next member
 		mirror = false,
 		names = true,
 		targets = true,
@@ -206,7 +212,7 @@ ns.Defaults = {
 		petScale = 0.7,
 		petAuras = true,
 		debuffPosition = "below", -- below, side
-		auras = AuraDefaults({ debuffSize = 32, rows = 2 }),
+		auras = AuraDefaults({ debuffSize = 32, rows = 1 }),
 	}),
 
 	raid = {

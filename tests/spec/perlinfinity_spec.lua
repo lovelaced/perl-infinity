@@ -535,16 +535,134 @@ describe("Perl Infinity Edit Mode handles", function()
     return h, F, w
   end
 
-  it("lets you grab a party member's pet and target", function()
+  it("gives party targets and pets their own Edit Mode boxes", function()
     local h, F = partyWithPetAndTarget()
     h.lem:enter()
     h:advance(0.2)
-    local selection = h.lem.frameSelections[F.Movers:Get("party")]
-    local subs = shownSubFrames(h)
-    expect(#subs >= 2).toBeTruthy()
-    for _, sub in ipairs(subs) do
-      expectCovered(selection, sub, "party " .. tostring(sub.kind))
+    local party = h.env.PerlInfinity_PartyHeader
+    for _, member in ipairs(party.children) do
+      if member.PartyTarget:IsVisible() then
+        expectCovered(h.lem.frameSelections[F.Movers:Get("partytarget")], member.PartyTarget, "party target")
+      end
+      if member.PartyPet:IsVisible() then
+        expectCovered(h.lem.frameSelections[F.Movers:Get("partypet")], member.PartyPet, "party pet")
+      end
     end
+    expect(#shownSubFrames(h) >= 2).toBeTruthy()
+  end)
+
+  it("moves party pets without moving the party or their targets", function()
+    local h, F = partyWithPetAndTarget()
+    h.env.EditModeManagerFrame.snapEnabled = false
+    h.lem:enter()
+    h:advance(0.2)
+    local party = h.env.PerlInfinity_PartyHeader
+    local member = party.children[2]
+    local memberLeft, _, _, memberTop = edges(member)
+    local targetLeft, _, _, targetTop = edges(party.children[1].PartyTarget)
+
+    h.lem:drag(F.Movers:Get("partypet"), "TOPLEFT", 700, -300)
+    h:advance(0.2)
+
+    local left, _, _, top = edges(member.PartyPet)
+    local scale = F.Movers:Get("partypet"):GetEffectiveScale()
+    local pitch = member.rects.height + (-party:GetAttribute("yOffset"))
+    local below = pitch * F.Movers:Get("party"):GetEffectiveScale()
+    expect(math.abs(left - 700 * scale) < 0.01).toBeTruthy()
+    expect(math.abs(top - (h.env.UIParent:GetHeight() * h.env.UIParent:GetEffectiveScale() - 300 * scale - below)) < 0.01).toBeTruthy()
+
+    local nowLeft, _, _, nowTop = edges(member)
+    expect(nowLeft).toBe(memberLeft)
+    expect(nowTop).toBe(memberTop)
+    local tLeft, _, _, tTop = edges(party.children[1].PartyTarget)
+    expect(tLeft).toBe(targetLeft)
+    expect(tTop).toBe(targetTop)
+  end)
+
+  it("leaves a moved column where you put it when the party moves", function()
+    local h, F = partyWithPetAndTarget()
+    h.env.EditModeManagerFrame.snapEnabled = false
+    h.lem:enter()
+    h:advance(0.2)
+    local party = h.env.PerlInfinity_PartyHeader
+    local pet = party.children[2].PartyPet
+    local target = party.children[1].PartyTarget
+    h.lem:drag(F.Movers:Get("partypet"), "TOPLEFT", 700, -300)
+    h:advance(0.2)
+    local petLeft = edges(pet)
+    local targetLeft = edges(target)
+
+    h.lem:drag(F.Movers:Get("party"), "TOPLEFT", 100, -100)
+    h:advance(0.2)
+
+    -- The pets were moved, so they stay. The targets weren't, so they follow.
+    expect(edges(pet)).toBe(petLeft)
+    expect(edges(target) ~= targetLeft).toBeTruthy()
+    local _, right = edges(party.children[1])
+    expect(math.abs(edges(target) - (right - 2 * party.children[1]:GetEffectiveScale())) < 0.01).toBeTruthy()
+  end)
+
+  it("puts a moved column back beside the party with Reset position", function()
+    local h, F = partyWithPetAndTarget()
+    h.env.EditModeManagerFrame.snapEnabled = false
+    h.lem:enter()
+    h:advance(0.2)
+    local party = h.env.PerlInfinity_PartyHeader
+    local member = party.children[2]
+    local before = edges(member.PartyPet)
+    local mover = F.Movers:Get("partypet")
+    h.lem:drag(mover, "TOPLEFT", 700, -300)
+    h:advance(0.2)
+    expect(edges(member.PartyPet) ~= before).toBeTruthy()
+
+    h.lem:resetPosition(mover)
+    h:advance(0.2)
+    expect(math.abs(edges(member.PartyPet) - before) < 0.01).toBeTruthy()
+    local layout = F.db and h.env.PerlInfinityDB.positions
+    for _, saved in pairs(layout or {}) do
+      expect(saved.partypet).toBeNil()
+    end
+  end)
+
+  it("remembers a moved column across a reload", function()
+    local h, F = partyWithPetAndTarget()
+    h.env.EditModeManagerFrame.snapEnabled = false
+    h.lem:enter()
+    h:advance(0.2)
+    h.lem:drag(F.Movers:Get("partytarget"), "TOPLEFT", 650, -250)
+    h:advance(0.2)
+    h.lem:exit()
+    h:advance(0.2)
+    h = h:reload()
+    h:advance(0.5)
+    local mover = h.env.PerlInfinity.Movers:Get("partytarget")
+    local point, relative, _, x, y = mover:GetPoint(1)
+    expect(point).toBe("TOPLEFT")
+    expect(relative).toBe(h.env.UIParent)
+    expect(x).toBe(650)
+    expect(y).toBe(-250)
+  end)
+
+  it("hides a column's box when that kind of frame is off", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "HUNTER" } })
+    h:advance(0.5)
+    expect(F.Movers:Get("partypet"):IsShown()).toBe(true)
+    F.Config:Set("party.pets", false)
+    h:advance(0.5)
+    expect(F.Movers:Get("partypet"):IsShown()).toBe(false)
+    expect(F.Movers:Get("partytarget"):IsShown()).toBe(true)
+    F.Config:Set("party.pets", true)
+    h:advance(0.5)
+    expect(F.Movers:Get("partypet"):IsShown()).toBe(true)
+  end)
+
+  it("applies the party size slider right away", function()
+    local h, F = boot()
+    F.Config:Set("party.scale", 1.1)
+    h:advance(0.5)
+    expect(F.Movers:Get("party"):GetScale()).toBe(1.1)
+    expect(math.abs(F.Movers:Get("partytarget"):GetScale() - 1.1 * 0.9) < 0.001).toBeTruthy()
   end)
 
   it("puts a party member's pet and target beside the frame at any scale", function()
@@ -571,25 +689,6 @@ describe("Perl Infinity Edit Mode handles", function()
         expect(petTop < top).toBeTruthy()
       end
     end
-  end)
-
-  it("grows the handle when a pet appears, and doesn't shrink it when one leaves", function()
-    local h, F, w = partyWithPetAndTarget()
-    h.lem:enter()
-    h:advance(0.2)
-    local selection = h.lem.frameSelections[F.Movers:Get("party")]
-    local _, rightBefore = edges(selection)
-    w:summonPet({ name = "Wolf" }, "party1")
-    h:advance(0.2)
-    for _, sub in ipairs(shownSubFrames(h)) do
-      expectCovered(selection, sub, "party " .. tostring(sub.kind))
-    end
-    local _, rightDuring = edges(selection)
-    expect(rightDuring >= rightBefore).toBeTruthy()
-    w:setTarget(nil, "party1")
-    h:advance(0.2)
-    local _, rightAfter = edges(selection)
-    expect(rightAfter).toBe(rightDuring)
   end)
 
   it("keeps the handle on the party frame's position when dropped", function()
@@ -636,5 +735,861 @@ describe("Perl Infinity Edit Mode handles", function()
       end
       expect(samples).toBe(4)
     end
+  end)
+
+  it("keeps samples of party targets and pets inside their boxes whichever way the party grows", function()
+    for _, direction in ipairs({ "down", "up", "right", "left" }) do
+      local h, F = boot()
+      F.db.party.direction = direction
+      F.Frames:Reconfigure("party")
+      h:advance(0.5)
+      h.lem:enter()
+      h:advance(0.2)
+      for _, key in ipairs({ "partytarget", "partypet" }) do
+        local mover = F.Movers:Get(key)
+        local selection = h.lem.frameSelections[mover]
+        local samples = 0
+        for _, child in ipairs({ mover:GetChildren() }) do
+          if child.preview and child:IsShown() then
+            samples = samples + 1
+            expectCovered(selection, child, key .. " sample growing " .. direction)
+          end
+        end
+        expect(samples).toBe(4)
+      end
+    end
+  end)
+
+  it("lines up with each member whichever way the party grows", function()
+    for _, direction in ipairs({ "down", "up", "right", "left" }) do
+      local h, F = boot()
+      F.db.party.direction = direction
+      F.Frames:Reconfigure("party")
+      h:advance(0.5)
+      local w = h.world
+      w:setParty({ { class = "WARRIOR" }, { class = "HUNTER" } })
+      h:advance(0.5)
+      for i, unit in ipairs({ "party1", "party2" }) do
+        w:summonPet({ name = "Cat" .. i }, unit)
+      end
+      h:advance(0.5)
+      for _, member in ipairs(h.env.PerlInfinity_PartyHeader.children) do
+        if member.PartyPet:IsVisible() then
+          local _, right, _, top = edges(member)
+          local scale = member:GetEffectiveScale()
+          local left, _, _, petTop = edges(member.PartyPet)
+          expect(math.abs(left - (right - 2 * scale)) < 0.01).toBeTruthy()
+          expect(math.abs(petTop - (top + member.rects.statsBox.y * scale)) < 0.01).toBeTruthy()
+        end
+      end
+    end
+  end)
+end)
+
+describe("Perl Infinity taint watch", function()
+  -- The harness treats everything as tainted, so these say exactly what is.
+  local function bootTainted(tainted)
+    local h = Harness.new({})
+    h.env.issecurevariable = function(a, b)
+      local name = b or a
+      if tainted[name] then return false, "PerlInfinity" end
+      return true
+    end
+    h:loadToc(TOC)
+    h:login()
+    h:advance(0.5)
+    return h
+  end
+
+  local function currentRun(h)
+    local watch = h.env.PerlInfinityLog.taintWatch
+    return watch.runs[#watch.runs]
+  end
+
+  it("does nothing until you turn it on", function()
+    local h = bootTainted({ PET_ACTION_HIGHLIGHT_MARKS = true })
+    h:advance(3)
+    expect(h.env.PerlInfinityLog.taintWatch).toBeNil()
+  end)
+
+  it("records a tainted global and what was going on", function()
+    local tainted = {}
+    local h = bootTainted(tainted)
+    h.env.PET_ACTION_HIGHLIGHT_MARKS = {}
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    h:advance(1)
+    expect(next(currentRun(h).findings)).toBeNil()
+    tainted.PET_ACTION_HIGHLIGHT_MARKS = true
+    h:advance(1)
+    local found = currentRun(h).findings.PET_ACTION_HIGHLIGHT_MARKS
+    expect(found).toBeTruthy()
+    expect(found.by).toBe("PerlInfinity")
+    expect(found.group).toBe("solo")
+  end)
+
+  it("finds a stray global anywhere in _G, but not the ones we make on purpose", function()
+    local tainted = { PerlInfinityOptionsFrame = true, SLASH_PERLINFINITY1 = true }
+    local h = bootTainted(tainted)
+    h.env.SomeStrayGlobal = 1
+    tainted.SomeStrayGlobal = true
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    h:advance(5)
+    local findings = currentRun(h).findings
+    expect(findings.SomeStrayGlobal).toBeTruthy()
+    expect(findings.PerlInfinityOptionsFrame).toBeNil()
+    expect(findings.SLASH_PERLINFINITY1).toBeNil()
+  end)
+
+  it("catches the stack of a tainted write as it happens", function()
+    local tainted = {}
+    local h = bootTainted(tainted)
+    h.env.PET_ACTION_HIGHLIGHT_MARKS = {}
+    h.env.PetActionBar = { ClearPetActionHighlightMarks = function() end }
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    h:advance(0.5)
+    tainted.PET_ACTION_HIGHLIGHT_MARKS = true
+    h.env.PetActionBar:ClearPetActionHighlightMarks()
+    local found = currentRun(h).findings.PET_ACTION_HIGHLIGHT_MARKS
+    expect(found).toBeTruthy()
+    expect(type(found.stack)).toBe("string")
+    expect(#found.stack > 0).toBe(true)
+  end)
+
+  it("reports tainted fields on Blizzard frames, skipping our own markers", function()
+    local tainted = {}
+    local h = bootTainted(tainted)
+    h.env.StanceBar = { isShownExternal = true, perlInfinityBlocked = true }
+    tainted.isShownExternal = true
+    tainted.perlInfinityBlocked = true
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    h:advance(5)
+    local findings = currentRun(h).findings
+    expect(findings["StanceBar.isShownExternal"]).toBeTruthy()
+    expect(findings["StanceBar.perlInfinityBlocked"]).toBeNil()
+  end)
+
+  it("stays on through a reload and stops when you turn it off", function()
+    local tainted = {}
+    local h = bootTainted(tainted)
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    expect(h.env.PerlInfinityLog.taintWatch.on).toBe(true)
+    h.env.SlashCmdList.PERLINFINITY("taintwatch")
+    expect(h.env.PerlInfinityLog.taintWatch.on).toBeNil()
+    h.env.LateGlobal = 1
+    tainted.LateGlobal = true
+    h:advance(5)
+    expect(currentRun(h).findings.LateGlobal).toBeNil()
+  end)
+end)
+
+describe("Perl Infinity screen edge warnings", function()
+  local function controlGlow(h)
+    for _, obj in ipairs(h.widgets.all) do
+      if obj.GetTexture and obj:GetTexture() == "Interface\\FullScreenTextures\\OutOfControl" then
+        return obj:GetParent()
+      end
+    end
+  end
+
+  it("glows while you've lost control of your character", function()
+    local h = boot()
+    local glow = controlGlow(h)
+    expect(glow:GetAlpha()).toBe(0)
+    h:fire("PLAYER_CONTROL_LOST")
+    expect(glow:GetAlpha()).toBe(1)
+    h:fire("PLAYER_CONTROL_GAINED")
+    expect(glow:GetAlpha()).toBe(0)
+  end)
+
+  it("stays off on a flight path", function()
+    local h = boot()
+    local glow = controlGlow(h)
+    h.world:get("player").onTaxi = true
+    h:fire("PLAYER_CONTROL_LOST")
+    expect(glow:GetAlpha()).toBe(0)
+    h:advance(2)
+    expect(glow:GetAlpha()).toBe(0)
+    h.world:get("player").onTaxi = false
+    h:fire("PLAYER_CONTROL_GAINED")
+    expect(glow:GetAlpha()).toBe(0)
+  end)
+
+  it("turns off if the game reports the flight after the event", function()
+    local h = boot()
+    local glow = controlGlow(h)
+    h:fire("PLAYER_CONTROL_LOST")
+    expect(glow:GetAlpha()).toBe(1)
+    h.world:get("player").onTaxi = true
+    h:advance(1)
+    expect(glow:GetAlpha()).toBe(0)
+  end)
+end)
+
+describe("Perl Infinity names", function()
+  local function partyFrame(h, unit)
+    for _, obj in ipairs(h.widgets.all) do
+      if obj.kind == "party" and obj.unit == unit then return obj end
+    end
+  end
+
+  local function shownName(frame)
+    return Harness.Secret.raw(frame.NameText:GetText())
+  end
+
+  local function joined(h, first, last)
+    return first .. h.env.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR .. last
+  end
+
+  it("shows a player's first name and surname", function()
+    local h, F = boot()
+    h.world:setParty({ { name = "Elwyn", surname = "Ashford" } })
+    h:advance(0.5)
+    expect(shownName(partyFrame(h, "party1"))).toBe(joined(h, "Elwyn", "Ashford"))
+    h.world:setTarget({ name = "Tamsin", surname = "Holloway", isPlayer = true, class = "MAGE" })
+    h:advance(0.5)
+    expect(shownName(F.Frames:Get("target"))).toBe(joined(h, "Tamsin", "Holloway"))
+  end)
+
+  it("shows one name for anyone without a surname", function()
+    local h, F = boot()
+    h.world:setParty({ { name = "Elwyn" }, { name = "Ow", surname = "" } })
+    h.world:setTarget(hostile("Defias Thug"))
+    h:advance(0.5)
+    expect(shownName(partyFrame(h, "party1"))).toBe("Elwyn")
+    expect(shownName(F.Frames:Get("target"))).toBe("Defias Thug")
+    -- Strict mode makes the empty surname secret, which can't be told apart.
+    -- The game's own code treats any surname it returns as a real one.
+    if h.mode ~= "strict" then
+      expect(shownName(partyFrame(h, "party2"))).toBe("Ow")
+    end
+  end)
+
+  it("still shows names the game has made secret", function()
+    local h, F = boot()
+    h.world:setTarget({ name = "Elwyn", surname = "Ashford", isPlayer = true, class = "MAGE" })
+    h.env.UnitName = function()
+      return Harness.Secret.wrap("Elwyn"), Harness.Secret.wrap("Ashford")
+    end
+    F.Frames:Get("target"):UpdateAll()
+    h:advance(0.5)
+    expect(shownName(F.Frames:Get("target"))).toBe(joined(h, "Elwyn", "Ashford"))
+  end)
+end)
+
+describe("Perl Infinity aura frame record", function()
+  it("saves what each party frame's icons were doing at logout", function()
+    local h = boot()
+    h.world:setParty({ { class = "WARRIOR" } })
+    h:advance(0.5)
+    h.world:applyAura("party1", { name = "Fort", duration = 1800 })
+    h:advance(0.5)
+    h:saveVariables()
+    local sessions = h.env.PerlInfinityLog.sessions
+    local record = sessions[#sessions].auraFrames
+    expect(record).toBeTruthy()
+    expect(record.frames[1].unit).toBe("party1")
+    expect(record.frames[1].kind).toBe("party")
+    expect(record.frames[1].containerUnit).toBe("party1")
+    -- Strict mode keeps auras secret all the time, and the record says so.
+    if h.mode ~= "strict" then
+      expect(record.frames[1].gameHasBuff).toBe("plain:table")
+    end
+  end)
+
+  it("saves nothing when you're not in a group", function()
+    local h = boot()
+    h:saveVariables()
+    local sessions = h.env.PerlInfinityLog.sessions
+    expect(sessions[#sessions].auraFrames).toBeNil()
+  end)
+end)
+
+describe("Perl Infinity aura icons", function()
+  local function partyFrame(h, unit)
+    for _, obj in ipairs(h.widgets.all) do
+      if obj.kind == "party" and obj.unit == unit then return obj end
+    end
+  end
+
+  -- The game places aura buttons but never sizes them: a layout's elementWidth
+  -- only sets how much room a button takes up, so an unsized button draws nothing.
+  local function expectSized(container, key, size)
+    local count = container:GetAuraGroupFrameCount(key)
+    expect(count > 0).toBe(true)
+    for i = 1, count do
+      local width, height = container:GetAuraGroupFrame(key, i):GetSize()
+      expect(Harness.Secret.raw(width)).toBe(size)
+      expect(Harness.Secret.raw(height)).toBe(size)
+    end
+  end
+
+  it("gives party icons a size you can see", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    local container = partyFrame(h, "party1").AuraContainers.icons
+    local auras = F.db.party.auras
+    expectSized(container, "buffs", auras.buffSize)
+    expectSized(container, "debuffs", auras.debuffSize)
+  end)
+
+  it("gives target icons a size you can see", function()
+    local h, F = boot()
+    h.world:setTarget(hostile())
+    h:advance(0.5)
+    local container = F.Frames:Get("target").AuraContainers.icons
+    expectSized(container, "buffs", F.db.target.auras.buffSize)
+    expectSized(container, "debuffs", F.db.target.auras.debuffSize)
+  end)
+
+  it("resizes icons when you change the setting", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    local frame = partyFrame(h, "party1")
+    F.db.party.auras.buffSize = 30
+    frame:Configure()
+    h:advance(0.5)
+    -- Strict mode keeps auras secret, so resizing waits, but the size is remembered.
+    if h.mode ~= "strict" then
+      expectSized(frame.AuraContainers.icons, "buffs", 30)
+    end
+  end)
+
+  -- How the game sorts an aura into a group: the filter string, then any
+  -- candidate filters. "PLAYER" means yours, whatever isFromPlayerOrPlayerPet says.
+  local function belongs(aura, group)
+    local wants = {}
+    for token in group.filter:gmatch("[^|]+") do
+      if token:sub(1, 1) == "!" then wants[token:sub(2)] = false else wants[token] = true end
+    end
+    if (wants.HARMFUL and not aura.harmful) or (wants.HELPFUL and aura.harmful) then return false end
+    if wants.PLAYER ~= nil and aura.mine ~= wants.PLAYER then return false end
+    local candidates = group.candidates or {}
+    for field, value in pairs(candidates) do
+      if aura[field] ~= value then return false end
+    end
+    return true
+  end
+
+  it("puts every aura in exactly one group, even when the game's flags disagree", function()
+    local F = select(2, boot())
+    local auras = {}
+    for _, harmful in ipairs({ false, true }) do
+      for _, mine in ipairs({ true, false }) do
+        for _, fromAPlayer in ipairs({ true, false }) do
+          for _, stealable in ipairs({ true, false }) do
+            auras[#auras + 1] = { harmful = harmful, mine = mine, isFromPlayerOrPlayerPet = fromAPlayer, isStealable = stealable }
+          end
+        end
+      end
+    end
+    for _, hostile in ipairs({ true, false }) do
+      for _, bigOwn in ipairs({ true, false }) do
+        for _, markStealable in ipairs({ true, false }) do
+          local groups = F.AuraHost.Groups(F.db.target.auras, { bigOwn = bigOwn, markStealable = markStealable }, hostile)
+          for _, aura in ipairs(auras) do
+            local count = 0
+            for _, group in ipairs(groups) do
+              if belongs(aura, group) then count = count + 1 end
+            end
+            expect(count).toBe(1)
+          end
+        end
+      end
+    end
+  end)
+
+  it("never shows the game's made-up Edit Mode auras on real frames", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "PRIEST" } })
+    h.world:setTarget(hostile())
+    h:advance(0.5)
+    expect(partyFrame(h, "party1").AuraContainers.icons:IsEditModePreviewEnabled()).toBe(false)
+    expect(F.Frames:Get("target").AuraContainers.icons:IsEditModePreviewEnabled()).toBe(false)
+  end)
+
+  it("leaves room between party members for every icon they could show", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "PRIEST" }, { class = "MAGE" } })
+    h:advance(0.5)
+    local header = h.env.PerlInfinity_PartyHeader
+    local member = partyFrame(h, "party1")
+    local auras = F.db.party.auras
+    local lineWidth = member.rects.width - member.rects.statsBox.x
+
+    -- Lay out the fullest rows by hand: big buffs, small buffs, then debuffs.
+    local big = math.floor(auras.buffSize * 1.4 + 0.5)
+    local bigCount = math.floor(lineWidth / (big + 2)) * auras.rows
+    local smallCount = math.floor(lineWidth / (auras.buffSize + 2)) * auras.rows
+    local debuffCount = math.floor(lineWidth / (auras.debuffSize + 2)) * auras.rows
+    expect(bigCount).toBe(4)
+    expect(smallCount).toBe(5)
+    expect(debuffCount).toBe(4)
+    -- One row of each, plus a little room above and below.
+    local needed = big + 2 + auras.buffSize + 2 + auras.debuffSize + 4
+    expect(-header:GetAttribute("yOffset")).toBe(needed)
+  end)
+
+  it("uses the exact spacing when you turn off making room, or when members sit side by side", function()
+    local h, F = boot()
+    local header
+    F.Config:Set("party.fitIcons", false)
+    h:advance(0.5)
+    header = h.env.PerlInfinity_PartyHeader
+    expect(-header:GetAttribute("yOffset")).toBe(F.db.party.spacing)
+
+    F.Config:Set("party.fitIcons", true)
+    F.Config:Set("party.direction", "right")
+    h:advance(0.5)
+    expect(header:GetAttribute("xOffset")).toBe(F.db.party.spacing)
+  end)
+
+  it("uses your spacing when it's bigger than the icons need", function()
+    local h, F = boot()
+    F.Config:Set("party.spacing", 60)
+    F.Config:Set("party.auras.buffs", false)
+    F.Config:Set("party.auras.debuffs", false)
+    h:advance(0.5)
+    expect(-h.env.PerlInfinity_PartyHeader:GetAttribute("yOffset")).toBe(60)
+  end)
+
+  it("gives heal over time bars a size you can see", function()
+    local h, F = boot()
+    F.db.highlight.hotBars = true
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    local bars = partyFrame(h, "party1").AuraContainers.hotBars
+    local _, height = bars:GetAuraGroupFrame("hotBars", 1):GetSize()
+    expect(Harness.Secret.raw(height)).toBe(2)
+  end)
+end)
+
+describe("Perl Infinity weapon enchants", function()
+  local function enchantFrames(h, F)
+    local container = F.Frames:Get("player").AuraContainers
+    container = container and container.icons
+    local frames = {}
+    if container then
+      for _, name in ipairs({ "MainHand", "OffHand", "Ranged" }) do
+        frames[name] = container:GetItemEnchantmentFrame(h.env.AuraContainerItemEnchantmentSlot[name])
+      end
+    end
+    return frames, container
+  end
+
+  it("stays off until you turn it on", function()
+    local h, F = boot()
+    h:advance(0.5)
+    expect(F.db.player.auras.weaponEnchants).toBe(false)
+    expect(F.Frames:Get("player").AuraContainers).toBeNil()
+  end)
+
+  it("shows each hand on your frame, sized, and right-click cancels", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.weaponEnchants", true)
+    h:advance(0.5)
+    local frames, container = enchantFrames(h, F)
+    for _, name in ipairs({ "MainHand", "OffHand", "Ranged" }) do
+      local button = frames[name]
+      expect(button).toBeTruthy()
+      expect(button.testCancelButtons).toBe("RightButtonUp")
+      local slot = h.env.AuraContainerItemEnchantmentSlot[name]
+      expect(container:IsItemEnchantmentEnabled(slot)).toBe(true)
+      local width = button:GetSize()
+      expect(Harness.Secret.raw(width)).toBe(31)
+    end
+  end)
+
+  it("works with the buff and debuff switches off, and turns off again", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.weaponEnchants", true)
+    h:advance(0.5)
+    local _, container = enchantFrames(h, F)
+    expect(container).toBeTruthy()
+    F.Config:Set("player.auras.weaponEnchants", false)
+    h:advance(0.5)
+    for _, name in ipairs({ "MainHand", "OffHand", "Ranged" }) do
+      expect(container:IsItemEnchantmentEnabled(h.env.AuraContainerItemEnchantmentSlot[name])).toBe(false)
+    end
+  end)
+
+  it("waits until combat ends to add them", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.buffs", true)
+    h:advance(0.5)
+    h.world:combat(true)
+    h:advance(0.1)
+    F.Config:Set("player.auras.weaponEnchants", true)
+    h:advance(0.5)
+    local frames = enchantFrames(h, F)
+    expect(frames.MainHand).toBeNil()
+    h.world:combat(false)
+    h:advance(0.5)
+    frames = enchantFrames(h, F)
+    expect(frames.MainHand).toBeTruthy()
+  end)
+
+  it("only offers them on your own frame", function()
+    local h, F = boot()
+    h.world:setTarget(hostile())
+    h:advance(0.5)
+    local target = F.Frames:Get("target")
+    expect(target.AuraContainers.icons.enchantSlots).toBeNil()
+  end)
+
+  it("draws a sample in the options preview", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.weaponEnchants", true)
+    h:advance(0.5)
+    local preview = F.Frames:CreatePreview("player", h.env.UIParent)
+    local shown = 0
+    for _, icon in ipairs(preview.PreviewAuras or {}) do
+      if icon:IsShown() then shown = shown + 1 end
+    end
+    expect(shown).toBe(1)
+  end)
+end)
+
+describe("Perl Infinity and your own buffs and debuffs", function()
+  local function reloadLine(h)
+    for i = #h.chatLines, 1, -1 do
+      if h.chatLines[i]:find("/reload", 1, true) then return h.chatLines[i] end
+    end
+  end
+
+  local function iconCount(container, key)
+    return container and container.groups[key] and container:GetAuraGroupFrameCount(key) or 0
+  end
+
+  it("leaves the game's displays alone and adds no icons by default", function()
+    local h, F = boot()
+    for _, name in ipairs({ "BuffFrame", "DebuffFrame" }) do
+      local display = h.env[name]
+      expect(display:IsRolesetFiltered()).toBe(false)
+      expect(display:IsEventRegistered("UNIT_AURA")).toBe(true)
+      expect(display.perlInfinityBlocked).toBe(nil)
+    end
+    expect(F.BlizzardHide:IsHidden("buffs")).toBe(false)
+    expect(F.BlizzardHide:IsHidden("debuffs")).toBe(false)
+    expect(F.Frames:Get("player").AuraContainers).toBe(nil)
+  end)
+
+  it("lets you choose either, both or neither for each of the four displays", function()
+    for _, keepBuffs in ipairs({ true, false }) do
+      for _, keepDebuffs in ipairs({ true, false }) do
+        for _, showBuffs in ipairs({ true, false }) do
+          for _, showDebuffs in ipairs({ true, false }) do
+            local h, F = boot()
+            F.Config:Set("player.keepBlizzardBuffs", keepBuffs)
+            F.Config:Set("player.keepBlizzardDebuffs", keepDebuffs)
+            F.Config:Set("player.auras.buffs", showBuffs)
+            F.Config:Set("player.auras.debuffs", showDebuffs)
+            h:advance(0.5)
+            expect(h.env.BuffFrame:IsRolesetFiltered()).toBe(not keepBuffs)
+            expect(h.env.DebuffFrame:IsRolesetFiltered()).toBe(not keepDebuffs)
+            local container = F.Frames:Get("player").AuraContainers
+            container = container and container.icons
+            local buffCount = iconCount(container, "buffs") + iconCount(container, "buffsMine")
+            expect(buffCount > 0).toBe(showBuffs)
+            expect(iconCount(container, "debuffs") > 0).toBe(showDebuffs)
+          end
+        end
+      end
+    end
+  end)
+
+  it("stops the game's buff display listening, but keeps the debuff warning running", function()
+    local h, F = boot()
+    F.Config:Set("player.keepBlizzardBuffs", false)
+    F.Config:Set("player.keepBlizzardDebuffs", false)
+    h:advance(0.5)
+    expect(h.env.BuffFrame:IsEventRegistered("UNIT_AURA")).toBe(false)
+    expect(h.env.DebuffFrame:IsEventRegistered("UNIT_AURA")).toBe(true)
+  end)
+
+  it("says in chat that the game's displays need a reload to come back", function()
+    local h, F = boot()
+    F.Config:Set("player.keepBlizzardBuffs", false)
+    F.Config:Set("player.keepBlizzardDebuffs", false)
+    h:advance(0.5)
+    expect(reloadLine(h)).toBe(nil)
+    F.Config:Set("player.keepBlizzardBuffs", true)
+    F.Config:Set("player.keepBlizzardDebuffs", true)
+    h:advance(0.5)
+    expect(reloadLine(h)).toMatch("buffs and debuffs will come back")
+  end)
+
+  it("sizes your icons and only lets you cancel buffs, on your own frame", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.buffs", true)
+    F.Config:Set("player.auras.debuffs", true)
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    local icons = F.Frames:Get("player").AuraContainers.icons
+    local buff = icons:GetAuraGroupFrame("buffs", 1)
+    local width = buff:GetSize()
+    expect(Harness.Secret.raw(width)).toBe(F.db.player.auras.buffSize)
+    expect(buff.testCancelButtons).toBe("RightButtonUp")
+    expect(icons:GetAuraGroupFrame("buffsMine", 1).testCancelButtons).toBe("RightButtonUp")
+    expect(icons:GetAuraGroupFrame("debuffs", 1).testCancelButtons).toBe(nil)
+    for _, obj in ipairs(h.widgets.all) do
+      if obj.kind == "party" and obj.unit == "party1" then
+        expect(obj.AuraContainers.icons:GetAuraGroupFrame("buffs", 1).testCancelButtons).toBe(nil)
+      end
+    end
+  end)
+
+  it("keeps a row of icons inside a frame with its portrait on the left", function()
+    local h, F = boot()
+    F.Config:Set("player.auras.buffs", true)
+    h:advance(0.5)
+    if h.mode == "strict" then return end
+    local frame = F.Frames:Get("player")
+    local icons = frame.AuraContainers.icons
+    expect(icons:GetFlowLayoutMaximumLineSize()).toBe(frame.rects.statsBox.w)
+    expect(frame.rects.statsBox.w < frame.rects.width).toBe(true)
+  end)
+
+  it("starts icons below a shaman's totem row", function()
+    local h, F = boot()
+    h.world:get("player").class = "SHAMAN"
+    F.Config:Set("player.auras.buffs", true)
+    h:advance(0.5)
+    if h.mode == "strict" then return end
+    local frame = F.Frames:Get("player")
+    expect(frame.TotemRow ~= nil).toBe(true)
+    local _, _, _, _, y = frame.AuraContainers.icons:GetPoint(1)
+    expect(Harness.Secret.raw(y)).toBe(-2 - frame.TotemRow.height - 2)
+  end)
+end)
+
+describe("Perl Infinity markers in front of the frame", function()
+  -- A frame's own textures draw behind its child frames, and a frame with a
+  -- higher level draws in front of a lower one. So an icon is in front of a
+  -- box when the frame it's drawn on sits above the box and everything in it.
+  local function level(region)
+    if region:IsObjectType("Frame") then return region:GetFrameLevel() end
+    return region:GetParent():GetFrameLevel()
+  end
+
+  local BOXES = { "NameBox", "StatsBox", "PortraitBox", "LevelBox", "TypeBox", "ComboBox", "Health", "Power",
+    "PortraitModel", "Dragon" }
+  local ICONS = { "LeaderIcon", "LooterIcon", "RaidIcon", "PvPIcon", "StateIcon", "RestIcon", "ReadyIcon",
+    "ResurrectIcon", "RoleIcon", "CharmGlow", "RangeHand" }
+
+  local function expectInFront(frame, label)
+    local checked = 0
+    for _, iconKey in ipairs(ICONS) do
+      local icon = frame[iconKey]
+      if icon then
+        for _, boxKey in ipairs(BOXES) do
+          local box = frame[boxKey]
+          if box then
+            if level(icon) <= level(box) then
+              error(string.format("%s %s (level %d) is behind %s (level %d)", label, iconKey, level(icon), boxKey, level(box)))
+            end
+            checked = checked + 1
+          end
+        end
+      end
+    end
+    if checked == 0 then error(label .. ": no icons or boxes to compare") end
+  end
+
+  local function find(h, kind, unit)
+    for _, obj in ipairs(h.widgets.all) do
+      if type(obj) == "table" and obj.kind == kind and not obj.preview and (unit == nil or obj.unit == unit) then
+        return obj
+      end
+    end
+  end
+
+  it("draws raid markers, leader crowns and PvP badges in front of every box", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "WARRIOR" }, { class = "PRIEST" } })
+    h.world:setTarget(hostile())
+    h.world:setRaidTarget("target", 8)
+    h:advance(0.5)
+    expectInFront(F.Frames:Get("player"), "player")
+    expectInFront(F.Frames:Get("target"), "target")
+    h.world:setFocus(hostile("Kobold Geomancer"))
+    h:advance(0.5)
+    expectInFront(F.Frames:Get("focus"), "focus")
+    expectInFront(find(h, "party", "party1"), "party1")
+    h.world:setRaid(10)
+    h:advance(0.5)
+    expectInFront(find(h, "raid"), "raid")
+  end)
+end)
+
+describe("Perl Infinity elites and rares", function()
+  local function level(region)
+    if region:IsObjectType("Frame") then return region:GetFrameLevel() end
+    return region:GetParent():GetFrameLevel()
+  end
+
+  local function edge(box)
+    local r, g, b = box:GetBackdropBorderColor()
+    return string.format("%.2f %.2f %.2f", r, g, b)
+  end
+
+  local GOLD, ICE, PLAIN = "1.00 0.82 0.00", "0.55 0.85 1.00", "0.50 0.50 0.50"
+
+  local function target(h, classification)
+    local spec = hostile()
+    spec.classification = classification
+    h.world:setTarget(spec)
+    h:advance(0.5)
+  end
+
+  it("uses the dragon unless you pick something else", function()
+    local _, F = boot()
+    expect(F.Config:Get("target.elite")).toBe("dragon")
+    expect(F.Config:Get("focus.elite")).toBe("dragon")
+  end)
+
+  it("wraps an elite's portrait in a gold dragon that sits behind the portrait and level", function()
+    local h, F = boot()
+    -- Rogues get the combo point box beside the level, which the wing passes under.
+    h.world:get("player").class = "ROGUE"
+    F.Config:Set("target.combo", 3)
+    target(h, "elite")
+    local frame = F.Frames:Get("target")
+    expect(frame.Dragon:IsShown()).toBe(true)
+    expect(frame.DragonArt:GetTexture()).toBe(F.Media.ELITE)
+    for _, key in ipairs({ "NameBox", "StatsBox", "Health", "Power" }) do
+      expect(level(frame.Dragon) > level(frame[key])).toBe(true)
+    end
+    for _, key in ipairs({ "PortraitBox", "PortraitModel", "LevelBox", "TypeBox", "ComboBox" }) do
+      -- Strict mode hides even your own class, so there's no combo box there.
+      if frame[key] or key ~= "ComboBox" then
+        expect(level(frame.Dragon) < level(frame[key])).toBe(true)
+      end
+    end
+    expect(edge(frame.NameBox)).toBe(GOLD)
+    expect(edge(frame.PortraitBox)).toBe(GOLD)
+    expect(frame.MarkTab:IsShown()).toBe(false)
+    expect(frame.MarkGlow.Pulse:IsPlaying()).toBe(false)
+  end)
+
+  it("makes a rare hard to miss, then clears it all for an ordinary target", function()
+    local h, F = boot()
+    target(h, "rare")
+    local frame = F.Frames:Get("target")
+    expect(frame.Dragon:IsShown()).toBe(true)
+    expect(frame.DragonArt:GetTexture()).toBe(F.Media.RARE)
+    expect(frame.MarkTab:IsShown()).toBe(true)
+    expect(frame.MarkTab.Text:GetText()).toBe(F.L.CLASS_RARE)
+    expect(frame.MarkGlow.Pulse:IsPlaying()).toBe(true)
+    expect(frame.MarkGlow:GetAlpha()).toBe(1)
+    expect(edge(frame.StatsBox)).toBe(ICE)
+
+    target(h, "rareelite")
+    expect(frame.DragonArt:GetTexture()).toBe(F.Media.ELITE)
+    expect(frame.MarkTab.Text:GetText()).toBe(F.L.CLASS_RARE_ELITE)
+    expect(frame.MarkGlow.Pulse:IsPlaying()).toBe(true)
+
+    target(h, "normal")
+    expect(frame.Dragon:IsShown()).toBe(false)
+    expect(frame.MarkTab:IsShown()).toBe(false)
+    expect(frame.MarkGlow.Pulse:IsPlaying()).toBe(false)
+    expect(frame.MarkGlow:GetAlpha()).toBe(0)
+    expect(edge(frame.NameBox)).toBe(PLAIN)
+    expect(edge(frame.LevelBox)).toBe(PLAIN)
+  end)
+
+  it("marks with a label instead when you pick it, or when there's no portrait to wrap", function()
+    local h, F = boot()
+    local frame = F.Frames:Get("target")
+    F.Config:Set("target.elite", "text")
+    target(h, "elite")
+    expect(frame.Dragon:IsShown()).toBe(false)
+    expect(frame.MarkTab:IsShown()).toBe(true)
+    expect(frame.MarkTab.Text:GetText()).toBe(F.L.CLASS_ELITE)
+    expect(edge(frame.NameBox)).toBe(GOLD)
+
+    F.Config:Set("target.elite", "none")
+    h:advance(0.5)
+    expect(frame.Dragon:IsShown()).toBe(false)
+    expect(frame.MarkTab:IsShown()).toBe(false)
+    expect(edge(frame.NameBox)).toBe(PLAIN)
+
+    F.Config:Set("target.elite", "dragon")
+    F.Config:Set("target.portrait", false)
+    h:advance(0.5)
+    expect(frame.Dragon:IsShown()).toBe(false)
+    expect(frame.MarkTab:IsShown()).toBe(true)
+  end)
+
+  it("never marks players", function()
+    local h, F = boot()
+    h.world:setTarget({ name = "Tamsin", isPlayer = true, class = "MAGE", classification = "elite" })
+    h:advance(0.5)
+    local frame = F.Frames:Get("target")
+    expect(frame.Dragon:IsShown()).toBe(false)
+    expect(frame.MarkTab:IsShown()).toBe(false)
+    expect(edge(frame.NameBox)).toBe(PLAIN)
+  end)
+end)
+
+describe("Perl Infinity resting", function()
+  local function rest(h, on)
+    h.world.resting = on
+    h:fire("PLAYER_UPDATE_RESTING")
+    h:advance(0.3)
+  end
+
+  it("plays the sleepy Zzz and a gold glow while you rest, and stops in combat", function()
+    local h, F = boot()
+    local frame = F.Frames:Get("player")
+    expect(frame.RestIcon:GetAlpha()).toBe(0)
+    rest(h, true)
+    expect(frame.RestIcon:GetAlpha()).toBe(1)
+    expect(frame.RestIcon:GetAtlas()).toBe("UI-HUD-UnitFrame-Player-Rest-Flipbook")
+    expect(frame.RestLoop:IsPlaying()).toBe(true)
+    expect(frame.RestGlow.Pulse:IsPlaying()).toBe(true)
+    expect(frame.StateIcon:GetAlpha()).toBe(0)
+
+    h.world:combat(true)
+    h:advance(0.3)
+    expect(frame.RestIcon:GetAlpha()).toBe(0)
+    expect(frame.RestLoop:IsPlaying()).toBe(false)
+    expect(frame.RestGlow.Pulse:IsPlaying()).toBe(false)
+    expect(frame.StateIcon:GetAlpha()).toBe(1)
+
+    h.world:combat(false)
+    h:advance(0.3)
+    expect(frame.RestLoop:IsPlaying()).toBe(true)
+
+    rest(h, false)
+    expect(frame.RestIcon:GetAlpha()).toBe(0)
+    expect(frame.RestGlow:GetAlpha()).toBe(0)
+    expect(frame.StateIcon:GetAlpha()).toBe(0)
+  end)
+
+  it("shows the still rest icon when the animation is off", function()
+    local h, F = boot()
+    local frame = F.Frames:Get("player")
+    F.Config:Set("player.restAnimation", false)
+    rest(h, true)
+    expect(frame.StateIcon:GetAlpha()).toBe(1)
+    expect(frame.RestIcon:GetAlpha()).toBe(0)
+    expect(frame.RestLoop:IsPlaying()).toBe(false)
+    expect(frame.RestGlow.Pulse:IsPlaying()).toBe(false)
+  end)
+
+  it("shows the animation in the options preview", function()
+    local h, F = boot()
+    F.Options:Open()
+    F.Options:ShowPage("player")
+    h:advance(0.3)
+    local playing = false
+    for _, obj in ipairs(h.widgets.all) do
+      if type(obj) == "table" and obj.preview and obj.kind == "player" and obj:IsShown() and obj.RestLoop then
+        playing = playing or obj.RestLoop:IsPlaying()
+      end
+    end
+    expect(playing).toBe(true)
   end)
 end)

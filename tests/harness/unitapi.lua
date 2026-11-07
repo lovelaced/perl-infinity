@@ -108,6 +108,7 @@ function U.install(h)
   flag("UnitIsDead", "dead")
   flag("UnitIsGhost", "ghost")
   flag("UnitIsAFK", "afk")
+  flag("UnitOnTaxi", "onTaxi")
   flag("UnitIsDND", "dnd")
   flag("UnitIsPVP", "pvp")
   flag("UnitIsPVPFreeForAll", "ffa")
@@ -268,15 +269,23 @@ function U.install(h)
   ---------------------------------------------------------------------------
   -- Auras
   ---------------------------------------------------------------------------
+  -- "PLAYER" means cast by you, your pet or your vehicle, and "!PLAYER" means
+  -- anyone else. It doesn't go by isFromPlayerOrPlayerPet, which is about any player.
   local function matches(a, filter)
-    filter = (filter or "HELPFUL"):upper()
-    if filter:find("HARMFUL") then if not a.isHarmful then return false end
+    local wants = {}
+    for token in (filter or "HELPFUL"):upper():gmatch("[^|%s]+") do
+      if token:sub(1, 1) == "!" then wants[token:sub(2)] = false else wants[token] = true end
+    end
+    if wants.HARMFUL then if not a.isHarmful then return false end
     elseif not a.isHelpful then return false end
-    if filter:find("PLAYER") and not a.isFromPlayerOrPlayerPet then return false end
-    if filter:find("RAID_PLAYER_DISPELLABLE") or (filter:find("RAID") and a.isHarmful) then
+    if wants.PLAYER ~= nil then
+      local mine = a.sourceUnit == "player" or a.sourceUnit == "pet"
+      if mine ~= wants.PLAYER then return false end
+    end
+    if wants.RAID_PLAYER_DISPELLABLE or (wants.RAID and a.isHarmful) then
       if not a.dispelName then return false end
     end
-    if filter:find("CANCELABLE") and not filter:find("NOT_CANCELABLE") and a.isHarmful then return false end
+    if wants.CANCELABLE and a.isHarmful then return false end
     return true
   end
   local function auraCopy(a)

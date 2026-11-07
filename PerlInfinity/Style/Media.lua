@@ -105,8 +105,9 @@ Media.THIN_BACKDROP = {
 	insets = { left = 2, right = 2, top = 2, bottom = 2 },
 }
 
--- Same box with the thick bracket edge, used when a debuff tints the border.
-Media.DEBUFF_BACKDROP = {
+-- X-Perl's thick bracket edge on its own, for the glow around rare enemies
+-- and around your frame while you're resting.
+Media.GLOW_BACKDROP = {
 	edgeFile = Media.DEBUFF_EDGE,
 	edgeSize = 16,
 }

@@ -58,8 +58,9 @@ local function GlowInitializer(frame, r, g, b)
 end
 
 -- Thin bars along the top of the health bar, one per heal over time.
-local function HotBarInitializer()
+local function HotBarInitializer(frame)
 	return function(button)
+		button:SetSize(frame.Health:GetWidth(), 2)
 		button:EnableMouse(false)
 		button:SetMouseMotionEnabled(false)
 		local bar = CreateFrame("StatusBar", nil, button)
@@ -87,7 +88,7 @@ end
 function Highlights.Create(frame)
 	frame.hotGlowInit = GlowInitializer(frame, HOT_R, HOT_G, HOT_B)
 	frame.shieldGlowInit = GlowInitializer(frame, SHIELD_R, SHIELD_G, SHIELD_B)
-	frame.hotBarInit = HotBarInitializer()
+	frame.hotBarInit = HotBarInitializer(frame)
 	frame.bossInit = BossInitializer(frame)
 
 	frame.AggroOutline = Box.Outline(frame.Content, nil, 2, 6)
@@ -141,12 +142,17 @@ function Highlights.Configure(frame, conf)
 			bars:SetAuraGroupMaxFrameCount("hotBars", 3)
 			bars:SetEnabled(true)
 			ns.Combat:RunAuraSafe(bars, function()
+				local width = frame.Health:GetWidth()
 				bars:SetAuraGroupLayout("hotBars", {
-					elementWidth = frame.Health:GetWidth(),
+					elementWidth = width,
 					elementHeight = 2,
 					elementSpacing = 0,
 					lineSpacing = 1,
 				})
+				-- The layout only sets the room each bar takes up, not its size.
+				for i = 1, bars:GetAuraGroupFrameCount("hotBars") do
+					bars:GetAuraGroupFrame("hotBars", i):SetSize(width, 2)
+				end
 			end)
 		end
 	elseif frame.AuraContainers and frame.AuraContainers.hotBars then

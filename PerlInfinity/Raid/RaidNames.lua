@@ -36,12 +36,12 @@ function RaidNames:Text()
 			end
 		end
 	elseif IsInGroup() then
-		names[1] = UnitName("player")
+		names[1] = ns.Secret.UnitFullName("player")
 		for i = 1, GetNumSubgroupMembers() do
-			names[#names + 1] = UnitName("party" .. i)
+			names[#names + 1] = ns.Secret.UnitFullName("party" .. i)
 		end
 	else
-		names[1] = UnitName("player")
+		names[1] = ns.Secret.UnitFullName("player")
 	end
 	table.sort(names)
 	return table.concat(names, ", ")

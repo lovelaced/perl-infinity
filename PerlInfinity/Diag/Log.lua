@@ -78,6 +78,8 @@ local function Context()
 	}
 	local _, instanceType = IsInInstance()
 	context.instance = instanceType
+	context.group = IsInRaid() and "raid" or IsInGroup() and "party" or "solo"
+	context.level = Scrub(UnitLevel("player"), 0)
 	if C_RestrictedActions and Enum.AddOnRestrictionType then
 		local active
 		for name, value in pairs(Enum.AddOnRestrictionType) do

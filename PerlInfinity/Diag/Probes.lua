@@ -140,6 +140,7 @@ local TEMPLATES = {
 local ATLASES = {
 	"Options_List_Active", "Options_List_Hover", "Options_CategoryHeader_1", "UI-PetMad", "UI-PetNeutral",
 	"UI-PetHappiness", "nameplates-InterruptShield", "Raid-Icon-SummonPending", "checkbox-minimal",
+	"UI-HUD-UnitFrame-Player-Rest-Flipbook",
 }
 
 local EVENTS = {
