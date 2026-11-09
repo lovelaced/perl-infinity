@@ -203,15 +203,27 @@ end
 -- Button styling (runs inside Blizzard's wrapper when a button is created)
 ---------------------------------------------------------------------------
 
--- Debuff border colors keyed by dispel type, as the container expects.
+-- Debuff colors keyed by dispel type, as the container expects. A type
+-- missing from the map gets the game's own color instead, so every type has
+-- an entry. Forever has no DebuffTypeColor table: the colors come from the
+-- game's AuraUtil, with the classic ones if that's ever missing.
+local CLASSIC_DISPEL_COLORS = {
+	Magic = { 0.2, 0.6, 1 },
+	Curse = { 0.6, 0, 1 },
+	Disease = { 0.6, 0.4, 0 },
+	Poison = { 0, 0.6, 0 },
+}
 local DISPEL_COLORS
 local function DispelColors()
 	if not DISPEL_COLORS then
 		DISPEL_COLORS = {}
-		for _, kind in ipairs({ "Magic", "Curse", "Disease", "Poison" }) do
-			local color = DebuffTypeColor and DebuffTypeColor[kind]
+		local gameColor = AuraUtil and AuraUtil.GetAuraBorderColor
+		for kind, classic in pairs(CLASSIC_DISPEL_COLORS) do
+			local color = gameColor and gameColor(kind)
 			if color then
 				DISPEL_COLORS[kind] = CreateColor(color.r, color.g, color.b, 1)
+			else
+				DISPEL_COLORS[kind] = CreateColor(classic[1], classic[2], classic[3], 1)
 			end
 		end
 		DISPEL_COLORS.None = CreateColor(0.8, 0, 0, 1)

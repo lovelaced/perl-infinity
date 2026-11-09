@@ -51,7 +51,7 @@ Frames:Define("player", {
 		"Health", "HealPrediction", "Power", "DruidMana", "Experience", "Name", "Level", "Portrait",
 		"Castbar", "Status", "Leader", "RaidIcon", "PvP", "StateIcon", "ReadyCheck", "GroupNumber",
 		-- Auras comes after Totems: icons below your frame make room for the totem row.
-		"CombatFeedback", "Totems", "Auras", "LowHealth",
+		"CombatFeedback", "Totems", "Auras", "DispelHighlight", "LowHealth",
 	},
 	refreshEvents = { "PLAYER_ENTERING_WORLD" },
 	sample = function()

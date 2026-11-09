@@ -432,10 +432,12 @@ describe("Perl Infinity CPU rules", function()
 
   it("builds nothing for frames nobody can see at login", function()
     local h, F = boot()
+    -- Your own frame is on screen, and its debuff highlight needs a container.
+    local own = F.Frames:Get("player").AuraContainers.icons
     local containers, raidButtons = 0, 0
     for _, o in ipairs(h.widgets.all) do
       local st = h.widgets.state[o]
-      if st.type == "AuraContainer" then containers = containers + 1 end
+      if st.type == "AuraContainer" and o ~= own then containers = containers + 1 end
       if type(o) == "table" and o.kind == "raid" and not o.preview then raidButtons = raidButtons + 1 end
     end
     -- Solo: no aura buttons for hidden frames, no raid buttons at all.
@@ -1182,7 +1184,8 @@ describe("Perl Infinity weapon enchants", function()
     local h, F = boot()
     h:advance(0.5)
     expect(F.db.player.auras.weaponEnchants).toBe(false)
-    expect(F.Frames:Get("player").AuraContainers).toBeNil()
+    local frames = enchantFrames(h, F)
+    expect(next(frames)).toBeNil()
   end)
 
   it("shows each hand on your frame, sized, and right-click cancels", function()
@@ -1272,7 +1275,9 @@ describe("Perl Infinity and your own buffs and debuffs", function()
     end
     expect(F.BlizzardHide:IsHidden("buffs")).toBe(false)
     expect(F.BlizzardHide:IsHidden("debuffs")).toBe(false)
-    expect(F.Frames:Get("player").AuraContainers).toBe(nil)
+    -- The container is there for the debuff highlight, with no icon groups.
+    local container = F.Frames:Get("player").AuraContainers.icons
+    expect(next(container.groups)).toBeNil()
   end)
 
   it("lets you choose either, both or neither for each of the four displays", function()
@@ -1591,5 +1596,98 @@ describe("Perl Infinity resting", function()
       end
     end
     expect(playing).toBe(true)
+  end)
+end)
+
+describe("Perl Infinity debuff highlight", function()
+  local raw = Harness.Secret.raw
+
+  local function partyFrame(h, unit)
+    for _, obj in ipairs(h.widgets.all) do
+      if obj.kind == "party" and obj.unit == unit then return obj end
+    end
+  end
+
+  local function slotButton(frame)
+    local container = frame.AuraContainers and frame.AuraContainers.icons
+    return container and container.slots.dispel and container:GetAuraSlotFrame("dispel"), container
+  end
+
+  local function alphas(button)
+    local edges = {}
+    for i, edge in ipairs(button.Edges) do edges[i] = raw(edge:GetAlpha()) end
+    return edges, raw(button.Wash:GetAlpha())
+  end
+
+  -- Forever has no DebuffTypeColor. Without a color for a type, the game
+  -- painted its own at full strength, which turned poisoned party members lime.
+  it("has a color for every debuff type without DebuffTypeColor", function()
+    local h, F = boot()
+    expect(h.env.DebuffTypeColor).toBeNil()
+    local colors = F.AuraHost.DispelColors()
+    for _, kind in ipairs({ "Magic", "Curse", "Disease", "Poison", "None" }) do
+      expect(colors[kind]).toBeTruthy()
+    end
+  end)
+
+  -- The game keeps only red, green and blue from our colors, so the wash's
+  -- strength has to come from the texture's own alpha.
+  it("keeps the background faint on party frames", function()
+    local h = boot()
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    local button = slotButton(partyFrame(h, "party1"))
+    expect(button).toBeTruthy()
+    expect(button:GetDispelTypeTextureCount()).toBe(5)
+    local edges, wash = alphas(button)
+    for _, alpha in ipairs(edges) do expect(alpha).toBe(1) end
+    expect(wash).toBe(0.3)
+    expect(button.Wash:GetBlendMode()).toBe("ADD")
+  end)
+
+  it("shows only the border or only the background when you pick one", function()
+    local h, F = boot()
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    -- Strict mode keeps auras secret, so restyling waits; the choice is remembered.
+    if h.mode == "strict" then return end
+    F.Config:Set("highlight.debuffStyle", "border")
+    h:advance(0.5)
+    local button = slotButton(partyFrame(h, "party1"))
+    local edges, wash = alphas(button)
+    for _, alpha in ipairs(edges) do expect(alpha).toBe(1) end
+    expect(wash).toBe(0)
+    F.Config:Set("highlight.debuffStyle", "background")
+    h:advance(0.5)
+    edges, wash = alphas(button)
+    for _, alpha in ipairs(edges) do expect(alpha).toBe(0) end
+    expect(wash).toBe(0.3)
+  end)
+
+  it("colors your own frame for any debuff, with no icons needed", function()
+    local h, F = boot()
+    h:advance(0.5)
+    local player = F.Frames:Get("player")
+    expect(F.db.player.debuffHighlight).toBe(true)
+    expect(F.db.player.auras.debuffs).toBe(false)
+    local button, container = slotButton(player)
+    expect(button).toBeTruthy()
+    expect(container:IsAuraSlotEnabled("dispel")).toBe(true)
+    expect(h.widgets.state[container].aura.slots.dispel.filter).toBe("HARMFUL")
+    F.Config:Set("player.debuffHighlight", false)
+    h:advance(0.5)
+    expect(container:IsAuraSlotEnabled("dispel")).toBe(false)
+  end)
+
+  it("colors your target with its icons turned off", function()
+    local h, F = boot()
+    F.Config:Set("target.debuffHighlight", "both")
+    F.Config:Set("target.auras.buffs", false)
+    F.Config:Set("target.auras.debuffs", false)
+    h.world:setTarget(hostile())
+    h:advance(0.5)
+    local button, container = slotButton(F.Frames:Get("target"))
+    expect(button).toBeTruthy()
+    expect(container:IsAuraSlotEnabled("dispel")).toBe(true)
   end)
 end)

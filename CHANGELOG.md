@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Your debuffs show on your own frame.** When you're poisoned, diseased, cursed or hit by a magic debuff, your player frame takes on its color, so you can tell at a glance without finding the game's debuff icons. Turn off **Debuff highlight** on the Player page if you don't want it.
+
+### Fixed
+
+- A poisoned party member's frame no longer turns bright green and hard to read. Other debuff colors had the same problem. The background tint is faint again, and choosing only the border or only the background under **Highlight style** works.
+
 ## 1.1.0 (2026-11-07)
 
 ### New

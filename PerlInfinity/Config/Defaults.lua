@@ -144,6 +144,7 @@ ns.Defaults = {
 		tallPortrait = false,
 		groupNumber = "above", -- hidden, above, name
 		restAnimation = true,
+		debuffHighlight = true,
 		xpBar = false,
 		xpRemaining = false,
 		repBar = false,

@@ -10,12 +10,19 @@ local AuraHost, Media = ns.AuraHost, ns.Media
 
 local DispelHighlight = ns.Element("DispelHighlight", {})
 
--- Which units this frame should tint, from settings.
+-- How strongly the wash adds the debuff's color over the frame. The game
+-- drops the alpha from the colors we give it, so the strength comes from
+-- each texture's own alpha, which the game leaves alone.
+local WASH_ALPHA = 0.3
+
+-- Which units this frame should tint, from settings. Your own frame has an
+-- on/off switch; target and focus choose friends, enemies or both.
 local function Mode(frame, conf)
 	if frame.spec.group then
 		return ns.db.highlight.debuffs
 	end
-	if conf.debuffHighlight and conf.debuffHighlight ~= "off" then
+	local who = conf.debuffHighlight
+	if who == true or (type(who) == "string" and who ~= "off") then
 		return "all"
 	end
 	return "off"
@@ -23,6 +30,16 @@ end
 
 function DispelHighlight.Enabled(frame, conf)
 	return not frame.preview and Mode(frame, conf) ~= "off"
+end
+
+-- Shows the outline, the wash or both. Hidden parts stay registered, since
+-- the game owns their visibility; they're just fully transparent.
+function DispelHighlight.ApplyStyle(button, style)
+	for _, edge in ipairs(button.Edges) do
+		edge:SetAlpha(style ~= "background" and 1 or 0)
+	end
+	button.Wash:SetAlpha(style ~= "border" and WASH_ALPHA or 0)
+	button.style = style
 end
 
 local function InitSlot(button, frame)
@@ -62,40 +79,17 @@ local function InitSlot(button, frame)
 	wash:SetBlendMode("ADD")
 	button.Wash = wash
 
-	DispelHighlight.Register(button, frame.dispelStyle or "both")
-end
+	DispelHighlight.ApplyStyle(button, frame.dispelStyle or "both")
 
--- Color maps: full color for the outline, a faint wash for the background,
--- and clear for whichever part the style turns off. Hidden parts stay
--- registered with a clear map, since the game owns their visibility.
-local maps = {}
-local function ColorMap(kind)
-	if not maps[kind] then
-		local map = {}
-		for name, color in pairs(AuraHost.DispelColors()) do
-			local alpha = kind == "wash" and 0.3 or (kind == "clear" and 0 or 1)
-			map[name] = CreateColor(color.r, color.g, color.b, alpha)
-		end
-		maps[kind] = map
+	local options = {
+		style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
+		showWhenHarmful = true,
+		customDispelColorMap = AuraHost.DispelColors(),
+	}
+	for _, edge in ipairs(edges) do
+		button:AddDispelTypeTexture(edge, options)
 	end
-	return maps[kind]
-end
-
-function DispelHighlight.Register(button, style)
-	local preserve = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset
-	local function Bind(texture, map)
-		if texture.registered then
-			button:RemoveDispelTypeTexture(texture)
-		end
-		button:AddDispelTypeTexture(texture, { style = preserve, showWhenHarmful = true, customDispelColorMap = map })
-		texture.registered = true
-	end
-	local edgeMap = style ~= "background" and ColorMap("edge") or ColorMap("clear")
-	for _, edge in ipairs(button.Edges) do
-		Bind(edge, edgeMap)
-	end
-	Bind(button.Wash, style ~= "border" and ColorMap("wash") or ColorMap("clear"))
-	button.style = style
+	button:AddDispelTypeTexture(wash, options)
 end
 
 function DispelHighlight.Create(frame)
@@ -125,7 +119,7 @@ function DispelHighlight.Restyle(frame)
 	local container = AuraHost.Get(frame)
 	local button = container and container.slots.dispel and container:GetAuraSlotFrame("dispel")
 	if button and button.Edges and button.style ~= frame.dispelStyle then
-		DispelHighlight.Register(button, frame.dispelStyle)
+		DispelHighlight.ApplyStyle(button, frame.dispelStyle)
 	end
 end
 
@@ -136,13 +130,17 @@ function DispelHighlight.Disable(frame)
 	end
 end
 
--- Target and focus only tint for friends, enemies, or both.
+-- Target and focus only tint for friends, enemies, or both. Your own frame's
+-- switch is just on or off, which Configure already handled.
 function DispelHighlight.Update(frame, unit)
 	local container = frame.AuraContainers and frame.AuraContainers.icons
 	if not container or not container.slots.dispel or frame.spec.group then
 		return
 	end
 	local who = frame:Conf().debuffHighlight
+	if type(who) ~= "string" then
+		return
+	end
 	local friendly = UnitCanAssist("player", unit)
 	local on = who == "both" or (who == "friendly" and friendly) or (who == "enemy" and not friendly)
 	container:SetAuraSlotEnabled("dispel", on and true or false)

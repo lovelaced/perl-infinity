@@ -77,10 +77,6 @@ CompactRaidFrameManager_SetSetting
 CanEnterEditMode
 SecureCmdOptionParse
 
-# Research 9 lists it as present, but nothing in the sparse tree defines or uses it.
-# Kept so lint doesn't block; the manifest check confirms it in game.
-DebuffTypeColor
-
 # Raid group moves: C functions used by Blizzard_RaidUI/Mainline/Blizzard_RaidUI.lua:601,607 (loads on Forever)
 SetRaidSubgroup
 SwapRaidSubgroup

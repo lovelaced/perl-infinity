@@ -110,7 +110,7 @@ local GLOBALS = {
 	"GetTotemInfo", "GetTotemDuration", "SetRaidSubgroup", "SwapRaidSubgroup", "GetPartyAssignment",
 	"GetNumGroupMembers", "GetNumSubgroupMembers", "IsInRaid", "IsInGroup", "UnitInRange",
 	"RegisterUnitWatch", "RegisterAttributeDriver", "AbbreviateNumbers", "BreakUpLargeNumbers",
-	"DebuffTypeColor", "CLASS_ICON_TCOORDS", "RAID_CLASS_COLORS", "PowerBarColor", "FACTION_BAR_COLORS",
+	"CLASS_ICON_TCOORDS", "RAID_CLASS_COLORS", "PowerBarColor", "FACTION_BAR_COLORS",
 	"READY_CHECK_READY_TEXTURE", "PET_HAPPINESS1", "GetCreatureDifficultyColor", "IsTargetLoose",
 	"GetThreatStatusColor", "UnitDetailedThreatSituation", "SetPortraitTexture", "ScrollUtil",
 	"MinimalSliderWithSteppersMixin", "TooltipDataProcessor", "StaticPopup_Show", "ColorPickerFrame",
@@ -126,6 +126,7 @@ local NAMESPACED = {
 	{ "C_DurationUtil", "CreateDurationTextBinding" }, { "C_StringUtil", "CreateSecondsFormatter" },
 	{ "C_EncodingUtil", "SerializeCBOR" }, { "C_AddOnProfiler", "GetAddOnMetric" },
 	{ "C_RestrictedActions", "IsAddOnRestrictionActive" }, { "C_ClassColor", "GetClassColor" },
+	{ "AuraUtil", "GetAuraBorderColor" },
 }
 
 local TEMPLATES = {

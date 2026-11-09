@@ -127,12 +127,16 @@ function B.install(h)
   PowerBarColor[0], PowerBarColor[1], PowerBarColor[2], PowerBarColor[3] = PowerBarColor.MANA, PowerBarColor.RAGE, PowerBarColor.FOCUS, PowerBarColor.ENERGY
   PowerBarColor[4], PowerBarColor[27] = PowerBarColor.COMBO_POINTS, PowerBarColor.HAPPINESS
   env.PowerBarColor = PowerBarColor
-  -- Not defined anywhere in the sparse Forever source tree; kept for compatibility.
-  -- Verify in game (manifest) before relying on it.
-  env.DebuffTypeColor = {
-    none = { r = 0.8, g = 0, b = 0 }, Magic = { r = 0.2, g = 0.6, b = 1 }, Curse = { r = 0.6, g = 0, b = 1 },
-    Disease = { r = 0.6, g = 0.4, b = 0 }, Poison = { r = 0, g = 0.6, b = 0 }, [""] = { r = 0.8, g = 0, b = 0 },
+  -- Forever has no DebuffTypeColor table (the in-game manifest check reports it
+  -- missing). Debuff colors come from AuraUtil, as in Forever's AuraUtil.lua.
+  local debuffColors = {
+    Magic = pc(0.2, 0.6, 1), Curse = pc(0.6, 0, 1), Disease = pc(0.6, 0.4, 0), Poison = pc(0, 0.6, 0),
+    Bleed = pc(1, 0, 0), None = pc(0.8, 0, 0),
   }
+  env.AuraUtil = env.AuraUtil or {}
+  env.AuraUtil.GetAuraBorderColor = function(dispelType)
+    return debuffColors[dispelType] or debuffColors.None
+  end
   env.FACTION_BAR_COLORS = {}
   for i = 1, 8 do env.FACTION_BAR_COLORS[i] = { r = i < 4 and 0.8 or 0, g = i >= 4 and 0.6 or 0.3, b = 0 } end
 

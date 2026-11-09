@@ -196,9 +196,15 @@ local function AuraFrameState(frame)
 	return state
 end
 
+-- Your own frame always has a container for the debuff highlight, so what
+-- matters is whether it shows any icons.
+local function HasOwnIcons(player)
+	return player ~= nil and player.AuraContainers ~= nil and ns.Elements.Auras.Enabled(player, player:Conf())
+end
+
 local function RecordAuraFrames(log)
 	local player = ns.Frames.instances.player
-	local playerIcons = player and player.AuraContainers
+	local playerIcons = HasOwnIcons(player)
 	if not (IsInGroup() or playerIcons) or not log.session then
 		return
 	end

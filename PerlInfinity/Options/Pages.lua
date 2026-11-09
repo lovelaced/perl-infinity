@@ -259,6 +259,7 @@ Pages.list = {
 			Header("HEADER_BARS"),
 			Drop("player.barText", BAR_TEXT, { key = "frame.barText" }),
 			Check("player.percent", { key = "frame.percent" }),
+			Check("player.debuffHighlight"),
 			Check("player.xpBar"),
 			Check("player.xpRemaining", { parent = "player.xpBar" }),
 			Check("player.repBar"),

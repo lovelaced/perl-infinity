@@ -267,6 +267,7 @@ function A.install(h)
     apply = function(obj, st)
       if st.type ~= "AuraContainer" then error("CustomAuraContainerTemplate requires frame type AuraContainer", 0) end
       guard("CreateFrame(AuraContainer)")
+      -- Containers start switched on (Blizzard_AuraContainer.xml: KeyValue enabled=true).
       st.aura = { enabled = true, groups = {}, order = {}, slots = {}, enchants = {}, flow = {}, updates = 0, editModePreview = true }
       for k, f in pairs(API) do obj[k] = f end
     end,
