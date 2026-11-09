@@ -57,7 +57,9 @@ end
 
 local function Check(frame)
 	local unit = frame.unit
-	if not unit or unit == "player" then
+	-- You're always in range of yourself, including your own raid button
+	-- (raid3, say), which the game's range check can report as out of range.
+	if not unit or unit == "player" or ns.Secret.Plain(UnitIsUnit(unit, "player")) then
 		return Apply(frame, nil)
 	end
 	if ns.db.range.mode == "auto" then

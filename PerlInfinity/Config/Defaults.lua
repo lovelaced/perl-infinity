@@ -253,7 +253,7 @@ ns.Defaults = {
 		growUp = false,
 		healthText = "percent", -- percent, missing, missingMax
 		width = 100,
-		height = 26,
+		height = 33,
 		alpha = 0.8,
 	},
 
@@ -267,7 +267,7 @@ ns.Defaults = {
 		targets = true,
 		growUp = false,
 		width = 120,
-		height = 12,
+		height = 38,
 		alpha = 1,
 	},
 

@@ -52,6 +52,13 @@ local function SetAttributes(header, attributes)
 	for _, key in ipairs(changed) do
 		header:SetAttribute(key, attributes[key])
 	end
+	-- The game's header only adds anchors to the buttons it shows and never
+	-- clears the old ones, so a new direction or sort would leave each button
+	-- pinned two ways. Clearing them first lets the layout below start clean;
+	-- buttons of a hidden header are anchored again when it shows.
+	for _, child in ipairs(header.children) do
+		child:ClearAllPoints()
+	end
 	header:SetAttribute("_ignore", ignore)
 	header:SetAttribute(last, attributes[last])
 end

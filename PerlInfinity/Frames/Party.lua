@@ -300,7 +300,12 @@ local function Apply()
 		ns.Movers:Rescale("party")
 		header:ClearAllPoints()
 		header:SetPoint(growth.corner, mover, growth.corner)
-		RegisterAttributeDriver(header, "state-visibility", Visibility(conf))
+		if conf.enabled then
+			RegisterAttributeDriver(header, "state-visibility", Visibility(conf))
+		else
+			UnregisterAttributeDriver(header, "state-visibility")
+			header:Hide()
+		end
 		local count = conf.showPlayer and 5 or 4
 		local vertical = growth.x == 0
 		local width = vertical and rects.width or (rects.width + gap) * count
@@ -324,7 +329,7 @@ end
 -- re-checked whenever the roster changes, out of combat.
 local function UpdateSmallRaid()
 	local conf = ns.db.party
-	if conf.inRaid ~= "smallRaid" or not header then
+	if conf.inRaid ~= "smallRaid" or not header or not conf.enabled then
 		return
 	end
 	Combat:Run(Combat:Key(header, "smallRaid"), function()
@@ -375,14 +380,9 @@ Frames:Define("party", {
 		if enabled and not header then
 			Frames.specs.party.Create()
 		elseif header then
-			Combat:Run(Combat:Key(header, "enabled"), function()
-				if enabled then
-					RegisterAttributeDriver(header, "state-visibility", Visibility(ns.db.party))
-				else
-					UnregisterAttributeDriver(header, "state-visibility")
-					header:Hide()
-				end
-			end)
+			-- Apply shows or hides the header by the switch.
+			Apply()
+			UpdateSmallRaid()
 		end
 		ns.Movers:SetEnabled("party", enabled)
 		for _, column in ipairs(COLUMNS) do

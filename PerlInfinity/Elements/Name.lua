@@ -18,7 +18,9 @@ function Name.Create(frame)
 end
 
 function Name.Configure(frame, conf)
-	frame.NameText:SetShown(conf.names ~= false and conf.name ~= false)
+	-- The cast bar borrows the name box and reads this to give it back.
+	frame.nameShown = conf.names ~= false and conf.name ~= false
+	frame.NameText:SetShown(frame.nameShown)
 end
 
 local function ColorName(frame, unit)

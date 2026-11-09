@@ -12,11 +12,12 @@ local Frames, Header, Combat = ns.Frames, ns.Header, ns.Combat
 local L = ns.L
 
 local header, title
+local ShowThirdColumn
 
 local ROW_ELEMENTS = { "Health", "Name", "RaidIcon", "Range", "Status" }
 
 local function RowOptions(_, conf)
-	return { width = conf.width, power = false }
+	return { width = conf.width, power = false, height = conf.height }
 end
 
 Frames:Define("tanks", {
@@ -51,6 +52,7 @@ Frames:Define("tanks", {
 				return unit .. "targettarget"
 			end)
 			frame.TankTargetTarget:SetPoint("TOPLEFT", frame.TankTarget, "TOPRIGHT", 2, 0)
+			ShowThirdColumn(frame, ns.db.tanks.showTargetTarget)
 		end)
 		local number = frame.Content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		number:SetPoint("RIGHT", frame, "LEFT", -2, 0)
@@ -87,11 +89,27 @@ local function Filter(conf)
 	return { roleFilter = "MAINTANK", groupFilter = false }
 end
 
+-- The third column (who each tank's enemy is attacking) is optional.
+ShowThirdColumn = function(row, shown)
+	local sub = row.TankTargetTarget
+	if not sub then
+		return
+	end
+	Combat:Run(Combat:Key(sub, "shown"), function()
+		if shown then
+			RegisterUnitWatch(sub)
+		else
+			UnregisterUnitWatch(sub)
+			sub:Hide()
+		end
+	end)
+end
+
 local function Apply()
 	local conf = ns.db.tanks
 	local mover = ns.Movers:Get("tanks")
 	local rects = ns.Layout.Raid(RowOptions(nil, conf))
-	Header.SetChildSize(header, rects.width, conf.height)
+	Header.SetChildSize(header, rects.width, rects.height)
 	local attributes = Filter(conf)
 	attributes.showRaid = true
 	attributes.point = conf.growUp and "BOTTOM" or "TOP"
@@ -106,7 +124,8 @@ local function Apply()
 		RegisterAttributeDriver(header, "state-visibility", "[group:raid] show; hide")
 	end)
 	mover:SetAlpha(conf.alpha)
-	ns.Movers:SetSize("tanks", (rects.width + 2) * 3 + 14, (conf.height + 2) * conf.max + 14)
+	local columns = conf.showTargetTarget and 3 or 2
+	ns.Movers:SetSize("tanks", (rects.width + 2) * columns + 14, (rects.height + 2) * conf.max + 14)
 	title:SetShown(true)
 	for index, child in ipairs(header.children) do
 		child:Configure()
@@ -116,9 +135,10 @@ local function Apply()
 		if child.subFrames then
 			for _, sub in ipairs(child.subFrames) do
 				sub:Configure()
-				Combat:Run(Combat:Key(sub, "size"), sub.SetSize, sub, rects.width, conf.height)
+				Combat:Run(Combat:Key(sub, "size"), sub.SetSize, sub, rects.width, rects.height)
 			end
 		end
+		ShowThirdColumn(child, conf.showTargetTarget)
 	end
 end
 

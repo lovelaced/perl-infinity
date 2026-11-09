@@ -122,12 +122,19 @@ function Layout.Small(opts)
 	return rects
 end
 
--- Raid buttons: a slim name strip over a slim stats box.
+-- Raid buttons: a slim name strip over a slim stats box. The tank and
+-- healer windows pass a row height, which stretches or shrinks the health
+-- bar (never below 6 pixels).
+Layout.RAID_HEALTH_MIN = 6
 function Layout.Raid(opts)
 	local width = opts.width
 	local nameH = 14
 	local healthH = 12
 	local manaH = opts.power and 4 or 0
+	if opts.height then
+		local fixed = nameH - 1 + 8 + (opts.power and (manaH + 1) or 0)
+		healthH = math.max(Layout.RAID_HEALTH_MIN, opts.height - fixed)
+	end
 	local statsH = 4 + healthH + (opts.power and (manaH + 1) or 0) + 4
 	local rects = {
 		name = { x = 0, y = 0, w = width, h = nameH },

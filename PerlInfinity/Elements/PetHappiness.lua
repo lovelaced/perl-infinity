@@ -85,6 +85,12 @@ local function Show(frame, happiness, damage)
 	end
 end
 
+function PetHappiness.Shown(frame, shown)
+	if not shown and frame.Happiness then
+		frame.Happiness.Flash:Stop()
+	end
+end
+
 function PetHappiness.Update(frame)
 	local happiness, damage = C_PetInfo.GetPetHappiness()
 	Show(frame, happiness, damage)

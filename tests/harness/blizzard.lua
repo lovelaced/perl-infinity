@@ -137,6 +137,15 @@ function B.install(h)
   env.AuraUtil.GetAuraBorderColor = function(dispelType)
     return debuffColors[dispelType] or debuffColors.None
   end
+  -- On Forever the ready check "textures" are atlas names
+  -- (Blizzard_FrameXML/Mainline/ReadyCheck.lua), so only SetAtlas draws them.
+  env.READY_CHECK_READY_TEXTURE = "UI-LFG-ReadyMark"
+  env.READY_CHECK_NOT_READY_TEXTURE = "UI-LFG-DeclineMark"
+  env.READY_CHECK_WAITING_TEXTURE = "UI-LFG-PendingMark"
+  h.atlasNames = h.atlasNames or {}
+  for _, name in ipairs({ "UI-LFG-ReadyMark", "UI-LFG-DeclineMark", "UI-LFG-PendingMark" }) do
+    h.atlasNames[name] = true
+  end
   env.FACTION_BAR_COLORS = {}
   for i = 1, 8 do env.FACTION_BAR_COLORS[i] = { r = i < 4 and 0.8 or 0, g = i >= 4 and 0.6 or 0.3, b = 0 } end
 

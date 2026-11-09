@@ -134,6 +134,8 @@ function AuraHost.Get(frame, name)
 	end
 	local started = debugprofilestop()
 	local container = CreateFrame("AuraContainer", nil, frame.Content, "CustomAuraContainerTemplate")
+	ns.Box.Raise(container, frame.Content, ns.Box.LEVEL.AURAS)
+	container.owner = frame
 	container.groups = {}
 	container.slots = {}
 	container.sizes = {}
@@ -160,12 +162,22 @@ function AuraHost.Refresh(frame, unit)
 	end
 end
 
+-- New groups and slots can't be added in combat. The frame sets itself up
+-- again once combat ends, so a setting turned on mid-fight still applies.
+local function RetryAfterCombat(container)
+	local frame = container.owner
+	if frame then
+		Combat:Run(Combat:Key(frame, "auraRetry"), frame.Configure, frame)
+	end
+end
+
 -- Adds a group once; afterwards it's only reconfigured.
 function AuraHost.EnsureGroup(container, key, filter, initialize)
 	if container.groups[key] then
 		return true
 	end
 	if InCombatLockdown() then
+		RetryAfterCombat(container)
 		return false
 	end
 	local started = debugprofilestop()
@@ -185,6 +197,7 @@ function AuraHost.EnsureSlot(container, key, filter, initialize, candidates)
 		return true
 	end
 	if InCombatLockdown() then
+		RetryAfterCombat(container)
 		return false
 	end
 	local started = debugprofilestop()
@@ -512,7 +525,10 @@ local function TotemRowHeight(frame)
 	return row and row:IsShown() and row.height + 2 or 0
 end
 
-local function PlaceContainer(frame, conf, container)
+-- Where the container sits. It isn't an aura button, so this works even
+-- while auras are secret (a battleground match, say), when the rest of the
+-- layout has to wait.
+local function AnchorContainer(frame, conf, container)
 	container:ClearAllPoints()
 	if frame.spec.layout == "Raid" then
 		local position = conf.iconPosition
@@ -523,16 +539,25 @@ local function PlaceContainer(frame, conf, container)
 		else
 			container:SetPoint("BOTTOMRIGHT", frame.StatsBox, "BOTTOMRIGHT", -3, 3)
 		end
+	elseif conf.auras.onTop then
+		container:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 2, 2)
+	else
+		container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -2 - TotemRowHeight(frame))
+	end
+end
+
+local function PlaceContainer(frame, conf, container)
+	AnchorContainer(frame, conf, container)
+	if frame.spec.layout == "Raid" then
+		local position = conf.iconPosition
 		container:SetFlowLayoutAnchorPoint(position == "inside" and "BOTTOMRIGHT" or "TOPLEFT")
 		container:SetFlowLayoutGrowthDirection(position == "inside" and AnchorUtil.FlowDirection.Left or FlowRight, FlowDown)
 		return
 	end
 	if conf.auras.onTop then
-		container:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 2, 2)
 		container:SetFlowLayoutAnchorPoint("BOTTOMLEFT")
 		container:SetFlowLayoutGrowthDirection(FlowRight, FlowUp)
 	else
-		container:SetPoint("TOPLEFT", frame.StatsBox, "BOTTOMLEFT", 2, -2 - TotemRowHeight(frame))
 		container:SetFlowLayoutAnchorPoint("TOPLEFT")
 		container:SetFlowLayoutGrowthDirection(FlowRight, FlowDown)
 	end
@@ -607,7 +632,9 @@ function Auras.Configure(frame, conf)
 	container:SetEnabled(true)
 
 	-- Sizes and placement resize aura buttons, which the game only allows
-	-- while auras aren't secret, so they wait for that if needed.
+	-- while auras aren't secret, so they wait for that if needed. The
+	-- container itself is anchored now either way.
+	AnchorContainer(frame, conf, container)
 	Combat:RunAuraSafe(container, AuraHost.ApplyLayout, frame, conf, container)
 end
 

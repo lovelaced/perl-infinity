@@ -35,10 +35,16 @@ function Castbar.Enabled(frame, conf)
 	return conf.castBar ~= false and frame.spec.castBar ~= false
 end
 
+-- Gives the name box back to the name, unless the Name element hid it
+-- (party "Show names" off, for example).
+local function RestoreName(frame)
+	frame.NameText:SetShown(frame.nameShown ~= false)
+end
+
 local function OnFadeFinished(animation)
 	local frame = animation.frame
 	frame.Castbar:Hide()
-	frame.NameText:Show()
+	RestoreName(frame)
 end
 
 local function CreateTimer(bar)
@@ -131,7 +137,7 @@ end
 
 function Castbar.Disable(frame)
 	frame.Castbar:Hide()
-	frame.NameText:Show()
+	RestoreName(frame)
 end
 
 function Castbar.OnUnitEvent(frame, event)
@@ -165,6 +171,11 @@ local function StartCast(frame, unit, text, duration, channeling, notInterruptib
 	bar.Spark:Show()
 	bar.Text:SetText(text)
 	bar:SetTimerDuration(duration, Immediate, channeling and RemainingTime or ElapsedTime)
+	-- The game can leave "can't interrupt" out; the color and shield calls
+	-- need a boolean.
+	if not issecretvalue(notInterruptible) and notInterruptible == nil then
+		notInterruptible = false
+	end
 	local color = EvaluateColorFromBoolean(notInterruptible, LOCKED, channeling and CHANNEL or CAST)
 	bar:SetStatusBarColor(color:GetRGB())
 	bar.Shield:SetAlphaFromBoolean(notInterruptible, 1, 0)
@@ -222,7 +233,7 @@ function Castbar.Preview(frame, sample)
 	local bar = frame.Castbar
 	if not sample.cast then
 		bar:Hide()
-		frame.NameText:Show()
+		RestoreName(frame)
 		return
 	end
 	frame.NameText:Hide()

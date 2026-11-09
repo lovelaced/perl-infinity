@@ -264,6 +264,10 @@ function T.install(W, h)
       if Secret.is(tex) and type(raw(tex)) == "string" then
         error("Cannot set texture to a secret string value.", 3)
       end
+      -- Like the game, an atlas name isn't a file, so nothing draws.
+      if type(raw(tex)) == "string" and h.atlasNames and h.atlasNames[raw(tex)] then
+        return false
+      end
       local s = st(self)
       s.texture, s.atlas, s.color = raw(tex), nil, nil
       s.textureSecret = Secret.is(tex) or nil

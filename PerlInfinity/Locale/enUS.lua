@@ -217,7 +217,7 @@ L.Options = {
 	["range.icon"] = { "Show out-of-range icon", "Adds a small reaching-hand icon to target and party frames when they're out of range." },
 
 	["highlight.debuffs"] = { "Debuff highlight", "Colors party and raid frames when someone has a debuff: blue for magic, purple for a curse, brown for disease, and green for poison." },
-	["highlight.debuffStyle"] = { "Highlight style", "Where the debuff color shows." },
+	["highlight.debuffStyle"] = { "Highlight style", "Where the debuff color shows, on every frame that colors for debuffs: your own, target, focus, party and raid." },
 	["highlight.hots"] = { "My heals over time", "Party and raid frames glow blue while one of your heals over time, like Renew or Rejuvenation, is on them. The glow pulses as it runs out." },
 	["highlight.hotBars"] = { "Heal over time bars", "Adds a thin bar along the health bar for each of your heals over time on that player, showing how long it has left. The game doesn't tell addons how much a heal over time will restore, so the bar shows time, not amount." },
 	["highlight.shields"] = { "My shields", "Party and raid frames glow purple while your Power Word: Shield is on them." },

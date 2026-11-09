@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-09)
 
 ### New
 
@@ -9,6 +9,19 @@
 ### Fixed
 
 - A poisoned party member's frame no longer turns bright green and hard to read. Other debuff colors had the same problem. The background tint is faint again, and choosing only the border or only the background under **Highlight style** works.
+- Ready checks show again. The check mark, X and question mark never appeared on your frame, party or raid.
+- Turning a frame on or off now works right away, from the options window or a key binding. Before, it waited for a `/reload`. Turning on the focus frame hid the game's focus frame and showed nothing in its place, and the raid frames key binding did nothing.
+- Changing which way the party or raid grows, how the raid is sorted, or which way the tank window grows no longer leaves frames in a staircase until you reload.
+- Sorting the raid by role with a class unticked no longer hides every raid frame.
+- With names turned off, a party member's or pet's name no longer comes back after they cast a spell.
+- **Frame opacity**, **Hide in battlegrounds**, the tank window's **Show who the enemy targets**, and the buff helper's **Sort names by** and **Only groups I can see** now work. Changing them used to do nothing.
+- **Highlight style** can be changed even with the party debuff highlight off, since it also sets the look for your own frame, target and focus.
+- The **Height** sliders for the tank and healer windows now resize the rows. The healer window's target column follows the healer window's settings instead of the tank window's.
+- Buff and debuff icons on target and focus draw in front of the creature type and the elite dragon again, and the debuff outline shows on the portrait side too.
+- With the portrait turned off, the creature type sits under the bars instead of covering the end of the health bar.
+- Icons you turn on in the middle of a fight now appear when the fight ends, instead of waiting for a reload.
+- The low health warning works with Perl Infinity's player frame turned off.
+- Your own raid frame always counts as in range, so it never fades.
 
 ## 1.1.0 (2026-11-07)
 

@@ -136,6 +136,9 @@ function Frames:SetEnabled(kind, enabled)
 	if spec.SetEnabled then
 		return spec.SetEnabled(enabled)
 	end
+	if not spec.unit then
+		return
+	end
 	local frame = instances[kind]
 	if enabled and not frame then
 		Combat:Run(Combat:Key(self, kind), self.CreateSingle, self, kind)
@@ -173,10 +176,32 @@ end
 -- Frames follow settings at most this often (seconds) while they change.
 local SETTINGS_INTERVAL = 0.1
 
+-- Turns frames on or off whose switch changed since we last looked. This
+-- covers the options window, key bindings and profile switches alike.
+local switches = {}
+local function FollowSwitches()
+	for _, kind in ipairs(order) do
+		local spec = specs[kind]
+		if spec.enabled then
+			local enabled = spec.enabled() and true or false
+			if switches[kind] ~= enabled then
+				switches[kind] = enabled
+				ns.Call(Frames.SetEnabled, Frames, kind, enabled)
+			end
+		end
+	end
+end
+
 local function Watch()
+	for _, kind in ipairs(order) do
+		if specs[kind].enabled then
+			switches[kind] = specs[kind].enabled() and true or false
+		end
+	end
 	local pending = {}
 	local flusher = { queued = false }
 	function flusher:Flush()
+		FollowSwitches()
 		for kind in pairs(pending) do
 			Frames:Reconfigure(kind ~= true and kind or nil)
 		end

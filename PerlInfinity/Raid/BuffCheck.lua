@@ -114,8 +114,65 @@ local function FamilyForSpell(spellID)
 	return nil
 end
 
+-- Group members for the tooltip list, with what each sort needs. "Only
+-- groups I can see" leaves out raid groups unticked on the Raid page.
+local function Members(visibleOnly)
+	local members = {}
+	if IsInRaid() then
+		for i = 1, GetNumGroupMembers() do
+			local _, _, subgroup, _, _, class = GetRaidRosterInfo(i)
+			if not visibleOnly or not subgroup or ns.Util.HasBit(ns.db.raid.groups, subgroup) then
+				members[#members + 1] = { unit = "raid" .. i, group = subgroup or 1, class = class, index = i }
+			end
+		end
+	else
+		for i, unit in ipairs(GroupUnits()) do
+			local _, class = UnitClass(unit)
+			members[#members + 1] = { unit = unit, group = 1, class = class, index = i }
+		end
+	end
+	return members
+end
+
+local function ClassRank()
+	local rank = {}
+	for index, token in ipairs(ns.Classes.order) do
+		rank[token] = index
+	end
+	return rank
+end
+
+local function SortMembers(members, how)
+	if how == "none" then
+		return
+	end
+	local rank = how == "class" and ClassRank()
+	local function Key(member)
+		if how == "class" then
+			local class = member.class
+			return (not issecretvalue(class) and rank[class]) or 99
+		end
+		return member.group
+	end
+	table.sort(members, function(a, b)
+		local ka, kb = Key(a), Key(b)
+		if ka ~= kb then
+			return ka < kb
+		end
+		local na, nb = a.name, b.name
+		if issecretvalue(na) or issecretvalue(nb) then
+			return a.index < b.index
+		end
+		return na < nb
+	end)
+end
+
 local function OnAuraTooltip(tooltip, data)
 	if not ns.db.tools.buffHelper or not CanRead() or not IsInGroup() then
+		return
+	end
+	-- The game draws some aura tooltips on a tooltip addons can't write to.
+	if tooltip.IsForbidden and tooltip:IsForbidden() then
 		return
 	end
 	local spellID = data and data.id
@@ -128,15 +185,20 @@ local function OnAuraTooltip(tooltip, data)
 	end
 	local names = FamilyNames(family)
 	local wantHave = IsAltKeyDown()
-	local list = {}
-	for _, unit in ipairs(GroupUnits()) do
-		if UnitExists(unit) and UnitIsConnected(unit) then
-			if HasAny(unit, names) == wantHave then
-				list[#list + 1] = ns.Secret.UnitFullName(unit)
-			end
+	local tools = ns.db.tools
+	local members = {}
+	for _, member in ipairs(Members(tools.buffHelperVisibleOnly)) do
+		local unit = member.unit
+		if UnitExists(unit) and UnitIsConnected(unit) and HasAny(unit, names) == wantHave then
+			member.name = ns.Secret.UnitFullName(unit)
+			members[#members + 1] = member
 		end
 	end
-	table.sort(list)
+	SortMembers(members, tools.buffHelperSort)
+	local list = {}
+	for i, member in ipairs(members) do
+		list[i] = member.name
+	end
 	if #list > 0 then
 		tooltip:AddLine(wantHave and L.TIP_HAVE_BUFF or L.TIP_MISSING_BUFF, 1, 0.82, 0)
 		tooltip:AddLine(table.concat(list, ", "), 1, 1, 1, true)

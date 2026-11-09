@@ -294,14 +294,16 @@ function S.install(h)
   local function collectUnits(header, pets)
     local list = {}
     local function add(token) local i = unitInfo(token); if i then list[#list + 1] = i end end
-    if w.group == "raid" then
-      if not truthy(attr(header, "showRaid")) then return list end
+    -- Without showRaid, a header in a raid shows your own raid group, like
+    -- a party (GetGroupHeaderType in SecureGroupHeaders.lua falls through).
+    local raidAsParty = w.group == "raid" and not truthy(attr(header, "showRaid"))
+    if w.group == "raid" and not raidAsParty then
       for i = 1, 40 do
         if w:get("raid" .. i) then
           if pets then add("raidpet" .. i) else add("raid" .. i) end
         end
       end
-    elseif w.group == "party" then
+    elseif w.group == "party" or raidAsParty then
       if not truthy(attr(header, "showParty")) then return list end
       if truthy(attr(header, "showPlayer")) then if pets then add("pet") else add("player") end end
       for i = 1, 4 do if pets then add("partypet" .. i) else add("party" .. i) end end
@@ -391,13 +393,18 @@ function S.install(h)
       n = n + 1
       local child = st.headerChildren[n]
       local cs = W.st(child)
-      cs.points = {}
+      -- Like the game's configureChildren: SetPoint replaces only the anchor
+      -- of the same name, and nothing clears the others, so a button keeps
+      -- any anchor left from an earlier layout (SecureGroupHeaders.lua).
       local col = math.floor((n - 1) / math.max(perCol or 1, 1))
       local row = (n - 1) % math.max(perCol or 1, 1)
       local cw, ch = cs.width or 0, cs.height or 0
       local x = row * (xm * cw + xOff) + col * (cxm * (cw + colSpacing))
       local y = row * (ym * ch + yOff) + col * (cym * (ch + colSpacing))
-      cs.points[1] = { point = anchor, rel = header, relPoint = anchor, x = x, y = y }
+      for j = #cs.points, 1, -1 do
+        if cs.points[j].point == anchor then table.remove(cs.points, j) end
+      end
+      cs.points[#cs.points + 1] = { point = anchor, rel = header, relPoint = anchor, x = x, y = y }
       -- A negative startingIndex (pre-creating buttons) shows buttons with no
       -- unit, like Blizzard's header does.
       local token = units[i] and units[i].token
@@ -407,6 +414,8 @@ function S.install(h)
     for i = n + 1, #st.headerChildren do
       local child = st.headerChildren[i]
       secureShow(child, false)
+      -- The game clears the anchors of buttons it hides.
+      W.st(child).points = {}
       if W.st(child).attributes.unit ~= nil then secureSet(child, "unit", nil) end
     end
     -- Like Blizzard's configureChildren, the header resizes to wrap what it

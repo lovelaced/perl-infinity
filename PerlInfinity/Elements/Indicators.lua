@@ -312,6 +312,13 @@ function StateIcon.Disable(frame)
 	StopResting(frame)
 end
 
+-- The Zzz and glow stop while the frame is hidden and come back with it.
+function StateIcon.Shown(frame, shown)
+	if not shown and frame.RestLoop then
+		StopResting(frame)
+	end
+end
+
 function StateIcon.Preview(frame, sample)
 	ShowState(frame, false, sample.resting)
 end
@@ -336,6 +343,8 @@ local ReadyCheck = ns.Element("ReadyCheck", {
 	events = { "READY_CHECK", "READY_CHECK_CONFIRM", "READY_CHECK_FINISHED" },
 })
 
+-- On Forever these globals hold atlas names, not file paths, so they're
+-- drawn with SetAtlas (SetTexture quietly draws nothing).
 local READY = {
 	ready = READY_CHECK_READY_TEXTURE,
 	notready = READY_CHECK_NOT_READY_TEXTURE,
@@ -371,9 +380,9 @@ end
 function ReadyCheck.Update(frame, unit)
 	local status = GetReadyCheckStatus(unit)
 	local icon = frame.ReadyIcon
-	local texture = status and not issecretvalue(status) and READY[status]
-	if texture then
-		icon:SetTexture(texture)
+	local atlas = status and not issecretvalue(status) and READY[status]
+	if atlas then
+		icon:SetAtlas(atlas)
 		frame.ReadyFade:Stop()
 		icon:SetAlpha(1)
 		if frame.readyEvent == "READY_CHECK_FINISHED" then
@@ -387,7 +396,7 @@ end
 
 function ReadyCheck.Preview(frame, sample)
 	if sample.ready then
-		frame.ReadyIcon:SetTexture(READY[sample.ready])
+		frame.ReadyIcon:SetAtlas(READY[sample.ready])
 		frame.ReadyIcon:SetAlpha(1)
 	else
 		frame.ReadyIcon:SetAlpha(0)

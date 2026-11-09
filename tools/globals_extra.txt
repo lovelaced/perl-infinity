@@ -1,4 +1,4 @@
-# Globals that exist on WoW: Forever (1.60.1.70338) but that tools/gen_globals.lua
+# Globals that exist on WoW: Forever (1.60.1.70862) but that tools/gen_globals.lua
 # cannot see: engine (C) functions the API docs leave out, Lua extras WoW registers
 # in the base library, and FrameXML objects defined in files missing from the sparse
 # source checkout. One name per line; "Table.member" adds a member. Keep each group
@@ -7,17 +7,14 @@
 
 # WoW Lua base-library extras (warcraft.wiki.gg "Lua functions"; used by Blizzard UI code)
 strsplit
-strsplittable
 strjoin
 strconcat
 strlenutf8
 strcmputf8i
 tostringall
-fmod
 fastrandom
 date
 time
-difftime
 debugstack
 debuglocals
 geterrorhandler
@@ -56,25 +53,21 @@ GetRaidRosterInfo
 GetReadyCheckStatus
 GetReadyCheckTimeLeft
 GetPartyAssignment
-IsMasterLooter
 GetMasterLootCandidate
 GetShapeshiftForm
 GetShapeshiftFormInfo
 GetPetExperience
-GetPetLoyalty
 UnitHasIncomingResurrection
 GetNumGroupMembers
 GetNumSubgroupMembers
 IsInGroup
 IsInRaid
-GetNumClasses
 GetClassInfo
 
 # Blizzard frames created in files absent from the checkout (research 6.2, architecture §6)
 TargetFrameToT
 CompactPartyFrame
 CompactRaidFrameManager_SetSetting
-CanEnterEditMode
 SecureCmdOptionParse
 
 # Raid group moves: C functions used by Blizzard_RaidUI/Mainline/Blizzard_RaidUI.lua:601,607 (loads on Forever)

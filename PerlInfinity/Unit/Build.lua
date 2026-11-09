@@ -128,6 +128,9 @@ function Build.ApplyLayout(self, conf)
 		self.PowerPercent:SetWidth(stats.percent.w)
 	end
 
+	-- The whole frame fades by the frame opacity; text fades further by
+	-- its own. Range fading works on the boxes inside, so they multiply.
+	self:SetAlpha(ns.db.look.frameAlpha)
 	local textAlpha = ns.db.look.textAlpha
 	self.NameText:SetAlpha(textAlpha)
 	self.Health.Text:SetAlpha(textAlpha)

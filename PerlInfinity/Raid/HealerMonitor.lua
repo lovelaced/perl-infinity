@@ -12,8 +12,29 @@ local L = ns.L
 local header, title
 
 local function RowOptions(_, conf)
-	return { width = conf.width, power = true }
+	return { width = conf.width, power = true, height = conf.height }
 end
+
+-- Each healer's target follows the healer window's size, but shows health
+-- as a percent rather than the healer rows' mana.
+local targetConf = setmetatable({ healthText = "percent", mana = false, manaPercent = false }, {
+	__index = function(_, key)
+		return ns.db.healers[key]
+	end,
+})
+
+Frames:Define("healertarget", {
+	layout = "Raid",
+	conf = function()
+		return targetConf
+	end,
+	layoutOptions = function(_, conf)
+		return { width = conf.width, power = false, height = RowOptions(nil, conf).height }
+	end,
+	elements = { "Health", "Name", "RaidIcon" },
+	refreshEvents = {},
+	combatFeedback = false,
+})
 
 Frames:Define("healers", {
 	layout = "Raid",
@@ -39,7 +60,7 @@ Frames:Define("healers", {
 			if frame.HealerTarget then
 				return
 			end
-			frame.HealerTarget = Frames:AddSubFrame(frame, "tanktarget", "target", function(unit)
+			frame.HealerTarget = Frames:AddSubFrame(frame, "healertarget", "target", function(unit)
 				return unit .. "target"
 			end)
 			frame.HealerTarget:SetPoint("TOPLEFT", frame, "TOPRIGHT", 2, 0)
@@ -61,7 +82,7 @@ local function Apply()
 	local conf = ns.db.healers
 	local mover = ns.Movers:Get("healers")
 	local rects = ns.Layout.Raid(RowOptions(nil, conf))
-	local height = math.max(rects.height, conf.height)
+	local height = rects.height
 	Header.SetChildSize(header, rects.width, height)
 	local _, class = UnitClass("player")
 	local innervate = class == "DRUID" and C_Spell.GetSpellName(Spells.innervate)
@@ -101,6 +122,11 @@ local function Apply()
 	ns.Movers:SetSize("healers", rects.width * (conf.targets and 2 or 1) + 4, (height + 1) * 10 + 14)
 	for _, child in ipairs(header.children) do
 		child:Configure()
+		local target = child.HealerTarget
+		if target then
+			target:Configure()
+			Combat:Run(Combat:Key(target, "size"), target.SetSize, target, rects.width, height)
+		end
 	end
 end
 

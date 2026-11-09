@@ -79,8 +79,11 @@ function RaidSpec.Build(conf)
 	end
 
 	if conf.sortBy == "role" then
+		-- Strict filtering needs a class match as well as a group, so the
+		-- classes go in the list too; otherwise nobody would show.
+		local classPart = allClasses and "" or ("," .. table.concat(classes, ","))
 		Column(nil, {
-			groupFilter = table.concat(groups, ","),
+			groupFilter = table.concat(groups, ",") .. classPart,
 			strictFiltering = not allClasses,
 			groupBy = "ASSIGNEDROLE",
 			groupingOrder = ROLE_ORDER,
@@ -132,7 +135,21 @@ local function ChildSize(conf)
 	return rects.width, rects.height
 end
 
+-- Macro conditions can't tell a battleground apart, so "Hide in
+-- battlegrounds" is applied when you change zones (never in combat).
+local function InBattleground()
+	local _, kind = IsInInstance()
+	return kind == "pvp"
+end
+
+local function HiddenHere(conf)
+	return conf.hideInBattlegrounds and InBattleground()
+end
+
 local function Visibility(conf)
+	if HiddenHere(conf) then
+		return "hide"
+	end
 	if conf.inParty then
 		return "[group] show; hide"
 	end
@@ -264,15 +281,32 @@ Frames:Define("raid", {
 	refreshEvents = { "GROUP_ROSTER_UPDATE" },
 
 	Create = function()
+		-- Listened to even while raid frames are off, so turning them on
+		-- later works the same as having them on at login.
+		ns.Events:On("GROUP_ROSTER_UPDATE", titles, function()
+			if ns.db.raid.enabled then
+				ColorTitles()
+				PrecreateWhenGrouped()
+			end
+		end)
+		local inBattleground = InBattleground()
+		local function OnZone()
+			local now = InBattleground()
+			if now ~= inBattleground then
+				inBattleground = now
+				if ns.db.raid.hideInBattlegrounds then
+					Frames:Reconfigure("raid")
+					Frames:Reconfigure("raidpets")
+				end
+			end
+		end
+		ns.Events:On("PLAYER_ENTERING_WORLD", headers, OnZone)
+		ns.Events:On("ZONE_CHANGED_NEW_AREA", headers, OnZone)
 		if not ns.db.raid.enabled then
 			return
 		end
 		Combat:Run(Combat:Key(headers, "apply"), Apply)
 		PrecreateWhenGrouped()
-		ns.Events:On("GROUP_ROSTER_UPDATE", titles, function()
-			ColorTitles()
-			PrecreateWhenGrouped()
-		end)
 	end,
 	-- Raid headers are secure: new columns can't be made, nor attributes
 	-- changed, during combat, so the whole update waits for it to end.
@@ -283,7 +317,10 @@ Frames:Define("raid", {
 	end,
 	SetEnabled = function(enabled)
 		if enabled then
-			Combat:Run(Combat:Key(headers, "apply"), Apply)
+			Combat:Run(Combat:Key(headers, "apply"), function()
+				Apply()
+				PrecreateWhenGrouped()
+			end)
 		else
 			for _, header in ipairs(headers) do
 				Combat:Run(Combat:Key(header, "place"), function()
@@ -335,14 +372,14 @@ local function ApplyPets()
 		else
 			petHeader:SetPoint("TOPLEFT", ns.Movers:Get("raidpets"), "TOPLEFT")
 		end
-		if conf.pets then
-			RegisterAttributeDriver(petHeader, "state-visibility", "[group:raid] show; hide")
+		if conf.enabled and conf.pets then
+			RegisterAttributeDriver(petHeader, "state-visibility", HiddenHere(conf) and "hide" or "[group:raid] show; hide")
 		else
 			UnregisterAttributeDriver(petHeader, "state-visibility")
 			petHeader:Hide()
 		end
 	end)
-	ns.Movers:SetEnabled("raidpets", conf.pets and not conf.petsAttached)
+	ns.Movers:SetEnabled("raidpets", conf.enabled and conf.pets and not conf.petsAttached)
 	ns.Movers:SetSize("raidpets", width, (height + conf.spacing) * 7)
 	for _, child in ipairs(petHeader.children) do
 		child:Configure()
@@ -392,3 +429,5 @@ Frames:Define("raidpets", {
 		end)
 	end,
 })
+-- Pets follow both the raid switch and their own, which Reconfigure reads.
+Frames.specs.raidpets.SetEnabled = Frames.specs.raidpets.Reconfigure

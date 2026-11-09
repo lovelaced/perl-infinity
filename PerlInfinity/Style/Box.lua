@@ -17,7 +17,10 @@ local boxes = setmetatable({}, { __mode = "k" })
 -- portrait and level boxes, so it wraps the portrait the way X-Perl drew
 -- it. Outlines and other holders use 5 to 10, and Overlay holds the small
 -- icons (raid marker, leader crown, PvP badge) in front of all of it.
-Box.LEVEL = { DRAGON = 3, FRONT = 4, OVERLAY = 12 }
+-- Levels above a frame's Content. Aura icons and the debuff outline sit in
+-- front of the dragon and the type, level and portrait boxes, so a long row
+-- of icons never slides under them.
+Box.LEVEL = { DRAGON = 3, FRONT = 4, AURAS = 5, OVERLAY = 12 }
 
 function Box.Raise(frame, content, layer)
 	frame:SetFrameLevel(content:GetFrameLevel() + layer)

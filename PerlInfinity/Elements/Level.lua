@@ -102,8 +102,9 @@ local function ConfigureMarks(frame, conf)
 	frame.DragonArt:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 37, 27)
 	frame.MarkTab:ClearAllPoints()
 	frame.MarkTab:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 8, -3)
+	-- Under the portrait, or with no portrait under the bars, never on them.
 	frame.TypeBox:ClearAllPoints()
-	frame.TypeBox:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, 2)
+	frame.TypeBox:SetPoint("TOPRIGHT", hasPortrait and portrait or frame.StatsBox, "BOTTOMRIGHT", 0, 2)
 	frame.TypeBox:SetShown(conf.creatureType)
 
 	-- With no portrait there's nothing for the dragon to wrap, so the label
@@ -213,6 +214,14 @@ local function ShowLevel(frame, level, classification, isPlayer, classToken)
 
 	if frame.spec.eliteMarker then
 		ShowMark(frame, classification, isPlayer)
+	end
+end
+
+-- A rare's glow stops when the frame hides; showing the frame updates it,
+-- which starts the glow again if it's still wanted.
+function Level.Shown(frame, shown)
+	if not shown and frame.MarkGlow then
+		frame.MarkGlow:Stop()
 	end
 end
 
