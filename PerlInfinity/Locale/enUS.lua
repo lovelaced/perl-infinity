@@ -225,7 +225,6 @@ L.Options = {
 	["highlight.aggro"] = { "Aggro", "Party and raid frames get a red outline when an enemy is attacking that player." },
 	["highlight.target"] = { "My target", "Puts a gold outline on the party or raid frame of whoever you're targeting." },
 
-	["auras.bigOwn"] = { "Show mine bigger", "Buffs and debuffs that you or your pet cast show up larger and first in line, so they're easy to find. Your own frame keeps them all the same size, since nearly all of them are yours." },
 	["auras.markStealable"] = { "Mark buffs I can remove", "Enemy buffs you can take off with spells like Purge or Dispel Magic get spinning arrows and show up first." },
 	["auras.spirals"] = { "Timer swirls", "The clock-style sweep across an icon that shows how much time is left." },
 	["auras.countdown"] = { "Countdown numbers", "Shows the seconds left on each icon." },

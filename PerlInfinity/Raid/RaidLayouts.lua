@@ -30,7 +30,7 @@ local function CanArrange()
 		ns.Print(L.MSG_LAYOUT_NOT_RAID)
 		return false
 	end
-	if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+	if not (ns.Secret.Plain(UnitIsGroupLeader("player")) or ns.Secret.Plain(UnitIsGroupAssistant("player"))) then
 		ns.Print(L.MSG_LAYOUT_NOT_LEADER)
 		return false
 	end

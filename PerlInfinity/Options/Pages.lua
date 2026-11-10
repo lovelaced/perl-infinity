@@ -159,7 +159,6 @@ Pages.list = {
 			Check("highlight.aggro"),
 			Check("highlight.target"),
 			Header("HEADER_AURAS"),
-			Check("auras.bigOwn"),
 			Check("auras.markStealable"),
 			Drop("auras.spirals", { "off", "mine", "all" }),
 			Drop("auras.countdown", { "off", "mine", "all" }),

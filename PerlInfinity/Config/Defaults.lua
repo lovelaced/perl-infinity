@@ -80,7 +80,6 @@ ns.Defaults = {
 	},
 
 	auras = {
-		bigOwn = true,
 		markStealable = true,
 		spirals = "mine", -- off, mine, all
 		countdown = "mine", -- off, mine, all

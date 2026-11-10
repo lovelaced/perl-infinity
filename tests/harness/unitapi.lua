@@ -269,12 +269,14 @@ function U.install(h)
   ---------------------------------------------------------------------------
   -- Auras
   ---------------------------------------------------------------------------
-  -- "PLAYER" means cast by you, your pet or your vehicle, and "!PLAYER" means
-  -- anyone else. It doesn't go by isFromPlayerOrPlayerPet, which is about any player.
+  -- "PLAYER" means cast by you, your pet or your vehicle. It doesn't go by
+  -- isFromPlayerOrPlayerPet, which is about any player. Forever accepts a
+  -- negated token like "!PLAYER" but doesn't apply it: players saw their own
+  -- buffs in a "HELPFUL|!PLAYER" group (Nov 2026), so negations are ignored here.
   local function matches(a, filter)
     local wants = {}
     for token in (filter or "HELPFUL"):upper():gmatch("[^|%s]+") do
-      if token:sub(1, 1) == "!" then wants[token:sub(2)] = false else wants[token] = true end
+      if token:sub(1, 1) ~= "!" then wants[token] = true end
     end
     if wants.HARMFUL then if not a.isHarmful then return false end
     elseif not a.isHelpful then return false end

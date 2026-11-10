@@ -84,7 +84,7 @@ end
 
 function Health.Configure(frame, conf)
 	frame.healthText = conf.barText or conf.healthText or "none"
-	frame.showPercent = conf.percent and frame.spec.layout ~= "Raid"
+	frame.showPercent = conf.percent and frame.hasPercentColumn and frame.spec.layout ~= "Raid"
 	frame.HealthPercent:SetShown(frame.showPercent or frame.spec.layout == "Raid")
 	frame.Health.Text:SetFontObject(ns.db.look.thickHealth and frame.spec.layout ~= "Raid" and "GameFontHighlight" or "GameFontHighlightSmall")
 end

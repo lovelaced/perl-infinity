@@ -170,7 +170,7 @@ end
 
 -- Hiding Blizzard's player frame also silences the PvP flag sound.
 local function OnPvPFlag()
-	if UnitIsPVP("player") then
+	if ns.Secret.Plain(UnitIsPVP("player")) then
 		PlaySound(SOUNDKIT.IG_PVP_UPDATE)
 	end
 end

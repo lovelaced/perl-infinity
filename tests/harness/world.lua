@@ -181,11 +181,17 @@ function World:identitySecret(token, isName)
   if mode == "open" or token == nil then return false end
   local u = self:get(token)
   if not u then return false end
-  if u.playerControlled or self:isGrouped(token) then
+  if self:isGrouped(token) then
     -- compound tokens: secret if any link fails (handled by base resolution above)
     return false
   end
-  if isName and self.pvpMatch and u.isPlayer then return false end
+  -- In a PvP match, players outside your group keep readable names, but the
+  -- rest of their identity (group leader, class, role...) is secret
+  -- (SecretPredicatesDocumentation: SecretWhenUnitNameIdentityRestricted).
+  if u.isPlayer and self:restrictionActive("PvPMatch") then
+    return not isName
+  end
+  if u.playerControlled then return false end
   if mode == "strict" then return true end
   return self:restrictionActive("Map") -- field: NPC identity measured secret on instanced maps
 end
@@ -390,6 +396,13 @@ function World:encounter(on, id, name)
     self.h:fire("ENCOUNTER_END", id or 1, name or "Boss", 1, 5, 1)
     fireRestriction(self, "Encounter", false)
   end
+end
+
+-- Starts or ends a PvP match (a battleground or arena game in progress).
+function World:pvp(on)
+  if on == nil then on = true end
+  self.pvpMatch = on and true or false
+  fireRestriction(self, "PvPMatch", self.pvpMatch)
 end
 
 function World:forceRestriction(kind, on)

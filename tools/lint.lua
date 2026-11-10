@@ -314,7 +314,13 @@ local function lintAst(path, src)
     local selfLiteral = a and a.tag == "String" and (a[1] == "player" or a[1] == "pet")
     local guarded = a and a.tag == "Id" and lookup(a[1]) and lookup(a[1]).playerControlled
     if not (selfLiteral or guarded) then return false end
-    for _, p in ipairs(preds) do if not SELF_EXEMPT[p] then return false end end
+    for _, p in ipairs(preds) do
+      if not SELF_EXEMPT[p] then return false end
+      -- A unit known to be a player can still have a secret identity: in a PvP
+      -- match the game hides it for players outside your group (seen in game,
+      -- Nov 2026). Only your own unit and your pet are always exempt.
+      if not selfLiteral and p == "SecretWhenUnitIdentityRestricted" then return false end
+    end
     return true
   end
 

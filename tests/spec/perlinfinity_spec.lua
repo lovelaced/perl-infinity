@@ -1059,11 +1059,12 @@ describe("Perl Infinity aura icons", function()
   end)
 
   -- How the game sorts an aura into a group: the filter string, then any
-  -- candidate filters. "PLAYER" means yours, whatever isFromPlayerOrPlayerPet says.
+  -- candidate filters. "PLAYER" means yours, whatever isFromPlayerOrPlayerPet
+  -- says. Forever ignores negated tokens like "!PLAYER", so they match anything.
   local function belongs(aura, group)
     local wants = {}
     for token in group.filter:gmatch("[^|]+") do
-      if token:sub(1, 1) == "!" then wants[token:sub(2)] = false else wants[token] = true end
+      if token:sub(1, 1) ~= "!" then wants[token] = true end
     end
     if (wants.HARMFUL and not aura.harmful) or (wants.HELPFUL and aura.harmful) then return false end
     if wants.PLAYER ~= nil and aura.mine ~= wants.PLAYER then return false end
@@ -1087,16 +1088,17 @@ describe("Perl Infinity aura icons", function()
       end
     end
     for _, hostile in ipairs({ true, false }) do
-      for _, bigOwn in ipairs({ true, false }) do
-        for _, markStealable in ipairs({ true, false }) do
-          local groups = F.AuraHost.Groups(F.db.target.auras, { bigOwn = bigOwn, markStealable = markStealable }, hostile)
-          for _, aura in ipairs(auras) do
-            local count = 0
-            for _, group in ipairs(groups) do
-              if belongs(aura, group) then count = count + 1 end
-            end
-            expect(count).toBe(1)
+      for _, markStealable in ipairs({ true, false }) do
+        local groups = F.AuraHost.Groups(F.db.target.auras, { markStealable = markStealable }, hostile)
+        for _, group in ipairs(groups) do
+          expect(group.filter:find("!", 1, true)).toBeNil()
+        end
+        for _, aura in ipairs(auras) do
+          local count = 0
+          for _, group in ipairs(groups) do
+            if belongs(aura, group) then count = count + 1 end
           end
+          expect(count).toBe(1)
         end
       end
     end
@@ -1120,16 +1122,13 @@ describe("Perl Infinity aura icons", function()
     local auras = F.db.party.auras
     local lineWidth = member.rects.width - member.rects.statsBox.x
 
-    -- Lay out the fullest rows by hand: big buffs, small buffs, then debuffs.
-    local big = math.floor(auras.buffSize * 1.4 + 0.5)
-    local bigCount = math.floor(lineWidth / (big + 2)) * auras.rows
-    local smallCount = math.floor(lineWidth / (auras.buffSize + 2)) * auras.rows
+    -- Lay out the fullest rows by hand: buffs, then debuffs on a new line.
+    local buffCount = math.floor(lineWidth / (auras.buffSize + 2)) * auras.rows
     local debuffCount = math.floor(lineWidth / (auras.debuffSize + 2)) * auras.rows
-    expect(bigCount).toBe(4)
-    expect(smallCount).toBe(5)
+    expect(buffCount).toBe(5)
     expect(debuffCount).toBe(4)
     -- One row of each, plus a little room above and below.
-    local needed = big + 2 + auras.buffSize + 2 + auras.debuffSize + 4
+    local needed = auras.buffSize + 2 + auras.debuffSize + 4
     expect(-header:GetAttribute("yOffset")).toBe(needed)
   end)
 
@@ -1199,7 +1198,7 @@ describe("Perl Infinity weapon enchants", function()
       expect(button.testCancelButtons).toBe("RightButtonUp")
       local slot = h.env.AuraContainerItemEnchantmentSlot[name]
       expect(container:IsItemEnchantmentEnabled(slot)).toBe(true)
-      -- The same size as your buffs: "Show mine bigger" skips your own frame.
+      -- The same size as your buffs.
       local width = button:GetSize()
       expect(Harness.Secret.raw(width)).toBe(F.db.player.auras.buffSize)
     end
@@ -1337,9 +1336,7 @@ describe("Perl Infinity and your own buffs and debuffs", function()
     local width = buff:GetSize()
     expect(Harness.Secret.raw(width)).toBe(F.db.player.auras.buffSize)
     expect(buff.testCancelButtons).toBe("RightButtonUp")
-    -- Your own frame keeps every buff the same size, so there's no separate
-    -- bigger group for the ones you cast, even with "Show mine bigger" on.
-    expect(F.db.auras.bigOwn).toBe(true)
+    -- Every buff is in one group, so none of them can show twice.
     expect(icons.groups.buffsMine).toBeNil()
     expect(icons:GetAuraGroupFrame("debuffs", 1).testCancelButtons).toBe(nil)
     for _, obj in ipairs(h.widgets.all) do

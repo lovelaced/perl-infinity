@@ -118,10 +118,12 @@ function AuraHost.Get(frame, name)
 	if frame.preview then
 		return nil
 	end
-	if InCombatLockdown() then
+	-- Containers can't be made in combat, nor while auras are secret (a
+	-- battleground match), so the frame sets itself up again once they can.
+	if Combat:AurasLocked() then
 		if not frame.auraHostPending then
 			frame.auraHostPending = true
-			Combat:Run(Combat:Key(frame, "auraHost"), function()
+			Combat:RunAurasUnlocked(Combat:Key(frame, "auraHost"), function()
 				frame.auraHostPending = false
 				frame:Configure()
 			end)
@@ -162,12 +164,13 @@ function AuraHost.Refresh(frame, unit)
 	end
 end
 
--- New groups and slots can't be added in combat. The frame sets itself up
--- again once combat ends, so a setting turned on mid-fight still applies.
+-- New groups and slots can't be added in combat or while auras are secret.
+-- The frame sets itself up again once they can, so a setting turned on
+-- mid-fight still applies.
 local function RetryAfterCombat(container)
 	local frame = container.owner
 	if frame then
-		Combat:Run(Combat:Key(frame, "auraRetry"), frame.Configure, frame)
+		Combat:RunAurasUnlocked(Combat:Key(frame, "auraRetry"), frame.Configure, frame)
 	end
 end
 
@@ -176,7 +179,7 @@ function AuraHost.EnsureGroup(container, key, filter, initialize)
 	if container.groups[key] then
 		return true
 	end
-	if InCombatLockdown() then
+	if Combat:AurasLocked() then
 		RetryAfterCombat(container)
 		return false
 	end
@@ -196,7 +199,7 @@ function AuraHost.EnsureSlot(container, key, filter, initialize, candidates)
 	if container.slots[key] then
 		return true
 	end
-	if InCombatLockdown() then
+	if Combat:AurasLocked() then
 		RetryAfterCombat(container)
 		return false
 	end
@@ -382,58 +385,46 @@ end
 -- Returns an ordered list of groups for a frame's aura settings. Every group
 -- costs ten aura buttons up front (the game builds them in a batch), so
 -- frames that only ever show friends (you, your pet, your party) skip the
--- groups that only matter on enemies: buffs you can remove, and your own
--- debuffs shown larger.
+-- groups that only matter on enemies, like buffs you can remove.
 --
--- Each aura has to land in exactly one group. "PLAYER" and "!PLAYER" split
--- them cleanly into yours and everyone else's. The isFromPlayerOrPlayerPet
--- field can't do that: it's about any player, not just you.
--- own: your own frame, where nearly every buff is yours, so "Show mine
--- bigger" would just make them all big. It applies to other frames only.
-function AuraHost.Groups(auras, global, hostile, own)
-	local bigOwn = global.bigOwn and not own
+-- Each aura has to land in exactly one group. Forever doesn't apply the
+-- "!PLAYER" filter (players saw their own buffs twice with it, Nov 2026),
+-- and isFromPlayerOrPlayerPet means any player, not just you, so there's no
+-- way to give your own auras a row of their own next to everyone else's.
+-- They come first in line instead: the game's default sort puts them there.
+-- Splitting by a candidate flag the game does check (isStealable) is safe.
+function AuraHost.Groups(auras, global, hostile)
 	local groups = {}
 	local function Add(key, filter, candidates, size, harmful, mine, stealable)
 		groups[#groups + 1] = {
 			key = key, filter = filter, candidates = candidates, size = Round(size),
 			harmful = harmful, mine = mine, stealable = stealable,
-			notMine = filter:find("!PLAYER", 1, true) ~= nil,
 		}
 	end
 
 	if auras.buffs then
 		local size = auras.buffSize
-		local bigSize = bigOwn and size * BIG or size
 		if auras.buffFilter == "castable" then
 			Add("buffs", "HELPFUL|RAID", nil, size, false, false, false)
 		elseif auras.buffFilter == "mine" then
-			Add("buffsMine", "HELPFUL|PLAYER", nil, bigSize, false, true, false)
+			Add("buffsMine", "HELPFUL|PLAYER", nil, size, false, true, false)
 		else
+			-- Buffs you can steal or purge come first and larger.
 			local steal = hostile and global.markStealable
 			if steal then
-				Add("stealable", "HELPFUL", { isStealable = true }, bigSize, false, false, true)
+				Add("stealable", "HELPFUL", { isStealable = true }, size * BIG, false, false, true)
 			end
-			local notStealable = steal and { isStealable = false } or nil
-			if bigOwn then
-				Add("buffsMine", "HELPFUL|PLAYER", notStealable, bigSize, false, true, false)
-				Add("buffs", "HELPFUL|!PLAYER", notStealable, size, false, false, false)
-			else
-				Add("buffs", "HELPFUL", notStealable, size, false, false, false)
-			end
+			Add("buffs", "HELPFUL", steal and { isStealable = false } or nil, size, false, false, false)
 		end
 	end
 
 	if auras.debuffs then
 		local first = #groups + 1
 		local size = auras.debuffSize
-		local bigSize = bigOwn and size * BIG or size
 		if auras.debuffFilter == "dispellable" then
 			Add("debuffs", "HARMFUL|RAID", nil, size, true, false, false)
 		elseif auras.debuffFilter == "mine" then
-			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
-		elseif bigOwn and hostile then
-			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
-			Add("debuffs", "HARMFUL|!PLAYER", nil, size, true, false, false)
+			Add("debuffsMine", "HARMFUL|PLAYER", nil, size, true, true, false)
 		else
 			Add("debuffs", "HARMFUL", nil, size, true, false, false)
 		end
@@ -600,7 +591,7 @@ local function ConfigureEnchants(conf, container)
 end
 
 function Auras.Configure(frame, conf)
-	frame.auraGroups = frame.spec.layout == "Raid" and RaidGroups(conf) or AuraHost.Groups(conf.auras, ns.db.auras, frame.spec.hostile, frame.kind == "player")
+	frame.auraGroups = frame.spec.layout == "Raid" and RaidGroups(conf) or AuraHost.Groups(conf.auras, ns.db.auras, frame.spec.hostile)
 	if frame.preview then
 		return
 	end
@@ -724,7 +715,7 @@ local function SampleMatches(group, aura)
 	if group.key == "stealable" then
 		return aura.stealable and true or false
 	end
-	if (group.mine and not aura.mine) or (group.notMine and aura.mine) then
+	if group.mine and not aura.mine then
 		return false
 	end
 	local candidates = group.candidates

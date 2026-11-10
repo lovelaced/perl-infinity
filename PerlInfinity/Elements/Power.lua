@@ -39,7 +39,7 @@ end
 function Power.Configure(frame, conf)
 	frame.Power:Show()
 	frame.powerText = conf.barText or "none"
-	frame.showPowerPercent = conf.percent and frame.spec.layout ~= "Raid"
+	frame.showPowerPercent = conf.percent and frame.hasPercentColumn and frame.spec.layout ~= "Raid"
 	frame.raidManaPercent = frame.spec.layout == "Raid" and conf.manaPercent
 	frame.PowerPercent:SetShown(frame.showPowerPercent)
 end

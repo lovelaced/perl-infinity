@@ -97,8 +97,12 @@ end
 function Build.ApplyLayout(self, conf)
 	local spec = self.spec
 	local layoutName = spec.layoutName and spec.layoutName(conf) or spec.layout
-	local rects = Layout[layoutName](spec.layoutOptions(self, conf))
+	local options = spec.layoutOptions(self, conf)
+	local rects = Layout[layoutName](options)
 	self.rects = rects
+	-- Whether the layout made room for the percent column. Party targets and
+	-- pets share the party's settings but never have one.
+	self.hasPercentColumn = options.percent and true or false
 	local content = self.Content
 
 	Place(self.NameBox, content, rects.name)

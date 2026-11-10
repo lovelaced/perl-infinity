@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.2 (2026-11-10)
+
+### Changed
+
+- **Show mine bigger** is gone. Your own buffs and debuffs still come first in line, but at the same size as the rest. Giving them a bigger row of their own made them show up twice, because Forever has no reliable way to leave them out of the other row.
+
+### Fixed
+
+- Your own buffs and debuffs no longer show twice on party, target and focus frames.
+- Targeting a player in a battleground no longer causes Lua errors.
+- In a battleground, frames that first appear after the match starts, like a raid that forms after the gates open, get their buff and debuff icons when the match ends.
+- Party targets and party pets no longer show a health or mana percent hanging outside their frame. They have no room for a percent column, so it stays hidden.
+
 ## 1.2.1 (2026-11-10)
 
 ### New

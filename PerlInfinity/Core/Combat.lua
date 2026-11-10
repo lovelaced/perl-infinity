@@ -5,7 +5,9 @@
 --
 -- Aura buttons have a second rule: they can't be restyled while auras are
 -- secret, which can be true outside combat too (PvP). RunAuraSafe waits for
--- both conditions.
+-- both conditions. Aura containers, groups and slots can't be added while an
+-- aura restriction is on (combat, a boss encounter, Mythic+, a PvP match);
+-- RunAurasUnlocked waits for those to end.
 local _, ns = ...
 
 local Combat = ns:NewModule("Combat")
@@ -14,6 +16,7 @@ local InCombatLockdown = InCombatLockdown
 local queues = {
 	protected = { order = {}, jobs = {} },
 	aura = { order = {}, jobs = {} },
+	unlocked = { order = {}, jobs = {} },
 }
 
 local function Enqueue(queue, key, fn, ...)
@@ -34,6 +37,30 @@ end
 
 local function AurasSecret()
 	return C_Secrets.ShouldAurasBeSecret()
+end
+
+-- True while aura containers can't be set up: in combat, a boss encounter,
+-- a Mythic+ run or a PvP match (a battleground once it starts).
+local AURA_RESTRICTIONS = { "Combat", "Encounter", "ChallengeMode", "PvPMatch" }
+local function AurasLocked()
+	if InCombatLockdown() then
+		return true
+	end
+	local types = Enum.AddOnRestrictionType
+	if not (types and C_RestrictedActions and C_RestrictedActions.IsAddOnRestrictionActive) then
+		return false
+	end
+	for _, name in ipairs(AURA_RESTRICTIONS) do
+		local value = types[name]
+		if value and C_RestrictedActions.IsAddOnRestrictionActive(value) then
+			return true
+		end
+	end
+	return false
+end
+
+function Combat:AurasLocked()
+	return AurasLocked()
 end
 
 -- A stable key for "this job on this frame", so different jobs on the same
@@ -71,6 +98,15 @@ function Combat:RunAuraSafe(key, fn, ...)
 	return true
 end
 
+function Combat:RunAurasUnlocked(key, fn, ...)
+	if AurasLocked() then
+		Enqueue(queues.unlocked, key, fn, ...)
+		return false
+	end
+	ns.Call(fn, ...)
+	return true
+end
+
 function Combat:HasPending()
 	return #queues.protected.order > 0
 end
@@ -82,19 +118,26 @@ end
 function Combat:Init()
 	ns.Events:On("PLAYER_REGEN_ENABLED", self, function()
 		Drain(queues.protected)
+		if not AurasLocked() then
+			Drain(queues.unlocked)
+		end
 		if not AurasSecret() then
 			Drain(queues.aura)
 		end
 	end)
 	ns.Events:On("ADDON_RESTRICTION_STATE_CHANGED", self, function()
-		if not InCombatLockdown() and not AurasSecret() and #queues.aura.order > 0 then
-			-- Restriction state is read as false during this event's dispatch,
-			-- so check again on the next frame.
-			C_Timer.After(0, function()
-				if not InCombatLockdown() and not AurasSecret() then
-					Drain(queues.aura)
-				end
-			end)
+		if InCombatLockdown() or (#queues.aura.order == 0 and #queues.unlocked.order == 0) then
+			return
 		end
+		-- Restriction state is read as false during this event's dispatch,
+		-- so check again on the next frame.
+		C_Timer.After(0, function()
+			if not AurasLocked() then
+				Drain(queues.unlocked)
+			end
+			if not InCombatLockdown() and not AurasSecret() then
+				Drain(queues.aura)
+			end
+		end)
 	end)
 end

@@ -71,7 +71,7 @@ local function Check(frame)
 		end
 		if spell then
 			local inRange = IsSpellInRange(spell, unit)
-			if inRange ~= nil or issecretvalue(inRange) then
+			if issecretvalue(inRange) or inRange ~= nil then
 				return Apply(frame, inRange)
 			end
 		end

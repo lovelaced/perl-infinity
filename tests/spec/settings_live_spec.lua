@@ -586,3 +586,111 @@ describe("Perl Infinity player reports, November 2026", function()
     expect(F.Frames:Get("player").NameText:GetJustifyH()).toBe("CENTER")
   end)
 end)
+
+describe("Perl Infinity percent column", function()
+  it("keeps party targets' and pets' percents off, since they have no column for them", function()
+    local h, F = boot()
+    expect(F.Config:Get("party.percent")).toBe(true)
+    h.world:setParty({ { class = "HUNTER" } })
+    h.world:summonPet({ name = "Cat" }, "party1")
+    h.world:setTarget(hostile(), "party1")
+    h:advance(0.5)
+    local member = find(h, "party", "party1")
+    expect(member.HealthPercent:IsShown()).toBe(true)
+    expect(member.PartyTarget.HealthPercent:IsShown()).toBe(false)
+    expect(member.PartyPet.HealthPercent:IsShown()).toBe(false)
+    expect(member.PartyPet.PowerPercent:IsShown()).toBe(false)
+  end)
+end)
+
+describe("Perl Infinity buffs shown once", function()
+  -- Icons the game would show: each group takes the unit's auras that pass
+  -- its filter string and candidate filters, up to its maximum.
+  local function iconTotal(h, frame)
+    local state = h.widgets.state[frame.AuraContainers.icons].aura
+    local total = 0
+    for _, g in pairs(state.groups) do
+      if g.enabled then
+        local count = 0
+        for _, aura in ipairs(h.env.C_UnitAuras.GetUnitAuras(frame.unit, g.filter, 40)) do
+          local passes = true
+          for field, value in pairs(g.candidateFilters or {}) do
+            if type(value) == "boolean" and (aura[field] and true or false) ~= value then passes = false end
+          end
+          if passes then count = count + 1 end
+        end
+        total = total + math.min(count, g.maxFrameCount)
+      end
+    end
+    return total
+  end
+
+  -- A player saw their own buffs twice on party and target frames: once in a
+  -- "yours" row and again in an "everyone else's" row, because Forever doesn't
+  -- apply the "!PLAYER" filter that row relied on.
+  it("shows your buff and someone else's exactly once each, on party and target", function()
+    -- Open mode, so the test itself can read the auras to count them.
+    local h, F = boot({ mode = "open" })
+    h.world:setParty({ { class = "PRIEST", name = "Partymember" } })
+    h:advance(0.5)
+    h.world:applyAura("party1", { name = "Mark of the Wild", duration = 1800, sourceUnit = "player" })
+    h.world:applyAura("party1", { name = "Power Word: Fortitude", duration = 1800, sourceUnit = "party1" })
+    h.world:setTarget("party1")
+    h:advance(0.5)
+    expect(iconTotal(h, find(h, "party", "party1"))).toBe(2)
+    expect(iconTotal(h, F.Frames:Get("target"))).toBe(2)
+  end)
+end)
+
+describe("Perl Infinity in a battleground", function()
+  -- A player saw "attempt to perform boolean test on a secret boolean value"
+  -- from the leader icon whenever they targeted someone in Arathi Basin.
+  local function battleground(h)
+    h.world:setRaid(15, function(i)
+      if i == 2 then return { raidRole = "MAINTANK", role = "TANK" } end
+    end)
+    h.world:instance("pvp")
+    h.world:pvp(true)
+    h:advance(0.5)
+  end
+
+  for _, mode in ipairs({ "strict", "field" }) do
+    it("targets enemy and friendly players without errors (" .. mode .. ")", function()
+      local h, F = boot({ mode = mode })
+      battleground(h)
+      h.world:setTarget({ name = "Enemyplayer", class = "WARRIOR", level = 30, reaction = 2, isPlayer = true })
+      h.world:setFocus({ name = "Someone", class = "PRIEST", level = 30, reaction = 5, isPlayer = true })
+      h:advance(0.5)
+      expect(F.Frames:Get("target"):IsShown()).toBe(true)
+      h.world:setTarget("raid3")
+      h:advance(0.5)
+      h:fire("GROUP_ROSTER_UPDATE")
+      h:fire("PLAYER_PVP_FLAG_CHANGED")
+      h:advance(0.5)
+    end)
+  end
+
+  it("sets up icons on frames that first appear during the match once it ends", function()
+    local h, F = boot()
+    h.world:instance("pvp")
+    h.world:pvp(true)
+    h:advance(0.2)
+    -- The raid forms after the match has started, and you turn on your buffs.
+    h.world:setRaid(10)
+    F.Config:Set("player.auras.buffs", true)
+    h:advance(1)
+    local raidButton = raidButtons(h)[1]
+    expect(raidButton).toBeTruthy()
+    local function hasIcons(frame)
+      return frame.AuraContainers ~= nil and frame.AuraContainers.icons ~= nil
+    end
+    expect(hasIcons(raidButton)).toBe(false)
+    local player = F.Frames:Get("player").AuraContainers.icons
+    expect(player.groups.buffs).toBeNil()
+    h.world:pvp(false)
+    h.world:instance("none")
+    h:advance(0.5)
+    expect(hasIcons(raidButton)).toBe(true)
+    expect(player.groups.buffs).toBeTruthy()
+  end)
+end)

@@ -81,10 +81,16 @@ function Leader.Update(frame, unit)
 		frame.LooterIcon:SetAlpha(0)
 		return
 	end
-	if UnitIsGroupLeader(unit) then
+	-- In a battleground match the game keeps this secret for players outside
+	-- your group. A secret answer can still show the crown, by alpha.
+	local isLeader = UnitIsGroupLeader(unit)
+	if issecretvalue(isLeader) then
+		icon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+		Secret.ShowIf(icon, isLeader)
+	elseif isLeader then
 		icon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
 		icon:SetAlpha(1)
-	elseif UnitIsGroupAssistant(unit) and IsInRaid() then
+	elseif Secret.Plain(UnitIsGroupAssistant(unit)) and IsInRaid() then
 		icon:SetTexture("Interface\\GroupFrame\\UI-Group-AssistantIcon")
 		icon:SetAlpha(1)
 	else
