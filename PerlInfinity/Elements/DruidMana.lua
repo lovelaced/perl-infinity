@@ -26,7 +26,7 @@ end
 
 function DruidMana.Configure(frame)
 	local slot = frame.extraSlots and frame.extraSlots.druidMana
-	frame.DruidManaBar = slot and Build.ExtraBar(frame, slot) or nil
+	frame.DruidManaBar = Build.ExtraBar(frame, "druidMana", slot)
 	if frame.DruidManaBar then
 		local color = Colors.Look("mana")
 		Bars.SetColor(frame.DruidManaBar, color.r, color.g, color.b)
@@ -34,9 +34,7 @@ function DruidMana.Configure(frame)
 end
 
 function DruidMana.Disable(frame)
-	if frame.DruidManaBar then
-		frame.DruidManaBar:Hide()
-	end
+	frame.DruidManaBar = Build.ExtraBar(frame, "druidMana", nil)
 end
 
 function DruidMana.Update(frame, unit)

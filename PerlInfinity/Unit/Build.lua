@@ -69,6 +69,15 @@ function Build.Attach(root, kind, spec, preview)
 	root.NameText:SetPoint("LEFT", thin and 4 or 7, 0)
 	root.NameText:SetPoint("RIGHT", thin and -4 or -7, 0)
 
+	-- On target and focus the elite dragon reaches over the right end of the
+	-- name and the percent column, so their text is drawn in front of it.
+	if spec.eliteMarker then
+		root.NameText:SetParent(Box.TextLayer(root.NameBox, content))
+		local statsText = Box.TextLayer(root.StatsBox, content)
+		root.HealthPercent:SetParent(statsText)
+		root.PowerPercent:SetParent(statsText)
+	end
+
 	-- Soft gold glow while the mouse is over the frame.
 	local highlight = content:CreateTexture(nil, "OVERLAY")
 	highlight:SetTexture(ns.Media.WHITE)
@@ -133,6 +142,7 @@ function Build.ApplyLayout(self, conf)
 	self:SetAlpha(ns.db.look.frameAlpha)
 	local textAlpha = ns.db.look.textAlpha
 	self.NameText:SetAlpha(textAlpha)
+	self.NameText:SetJustifyH(ns.db.look.centerNames and "CENTER" or "LEFT")
 	self.Health.Text:SetAlpha(textAlpha)
 	self.Power.Text:SetAlpha(textAlpha)
 
@@ -149,20 +159,25 @@ end
 
 -- Extra thin bars below the power bar (XP, reputation, druid mana) share
 -- these slots; elements claim one with Build.ExtraBar.
-function Build.ExtraBar(frame, index)
+function Build.ExtraBar(frame, name, index)
+	-- Bars are kept by name ("xp", "rep", "druidMana"), not by slot, so one
+	-- turned off is hidden, and the others move up without taking on another
+	-- bar's leftovers (the rested overlay, druid mana's fade).
 	frame.ExtraBars = frame.ExtraBars or {}
-	local bar = frame.ExtraBars[index]
+	local bar = frame.ExtraBars[name]
+	local rect = index and frame.rects and frame.rects.stats.extras[index]
+	if not rect then
+		if bar then
+			bar:Hide()
+		end
+		return nil
+	end
 	if not bar then
 		bar = Bars.Create(frame.StatsBox, false)
 		bar.Text:SetFontObject("GameFontHighlightSmall")
-		frame.ExtraBars[index] = bar
+		frame.ExtraBars[name] = bar
 	end
-	local rect = frame.rects and frame.rects.stats.extras[index]
-	if rect then
-		Place(bar, frame.StatsBox, rect)
-		bar:Show()
-	else
-		bar:Hide()
-	end
+	Place(bar, frame.StatsBox, rect)
+	bar:Show()
 	return bar
 end

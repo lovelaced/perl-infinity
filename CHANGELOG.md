@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1 (2026-11-10)
+
+### New
+
+- **Center names.** Turn on **Center names** on the Appearance page to center each name in its box.
+- **Creature type above the frame.** On the Target and Focus pages, **Creature type position** puts Beast, Humanoid and the rest above the frame instead of under the portrait.
+- **Resting without the glow.** **Glow while resting** on the Player page turns off the gold glow around your frame and keeps the Zzz.
+
+### Changed
+
+- Your own buffs on the player frame are now all the same size. **Show mine bigger** made nearly all of them larger there, since you cast most of them. It still works on every other frame. Weapon enchants match your buffs too.
+- Target of target, focus target, pet target, party targets and party pets have a taller health bar, which fills the empty space that used to sit under the mana bar. Party targets have no mana bar, so they're a little shorter now.
+
+### Fixed
+
+- Turning off the reputation bar on the player frame now hides it right away. Before, the inside of the bar stayed on screen until you reloaded.
+- The creature type box no longer shows up empty when you target a player.
+- On elites and bosses, the dragon no longer covers the health and mana percentages, the cast time or the end of a long name. The text now draws in front of it.
+
 ## 1.2.0 (2026-11-09)
 
 ### New

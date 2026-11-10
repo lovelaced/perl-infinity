@@ -102,10 +102,19 @@ local function ConfigureMarks(frame, conf)
 	frame.DragonArt:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 37, 27)
 	frame.MarkTab:ClearAllPoints()
 	frame.MarkTab:SetPoint("BOTTOMLEFT", frame.NameBox, "TOPLEFT", 8, -3)
-	-- Under the portrait, or with no portrait under the bars, never on them.
+	-- Below: under the portrait, or with no portrait under the bars, never
+	-- on them. Above: over the end of the name, clear of the combo points
+	-- above the portrait and the Elite or Rare tag at the name's start.
 	frame.TypeBox:ClearAllPoints()
-	frame.TypeBox:SetPoint("TOPRIGHT", hasPortrait and portrait or frame.StatsBox, "BOTTOMRIGHT", 0, 2)
-	frame.TypeBox:SetShown(conf.creatureType)
+	if conf.creatureTypePosition == "above" then
+		frame.TypeBox:SetPoint("BOTTOMRIGHT", frame.NameBox, "TOPRIGHT", -4, -2)
+	else
+		frame.TypeBox:SetPoint("TOPRIGHT", hasPortrait and portrait or frame.StatsBox, "BOTTOMRIGHT", 0, 2)
+	end
+	frame.showCreatureType = conf.creatureType
+	if not conf.creatureType then
+		frame.TypeBox:Hide()
+	end
 
 	-- With no portrait there's nothing for the dragon to wrap, so the label
 	-- stands in for it.
@@ -225,6 +234,27 @@ function Level.Shown(frame, shown)
 	end
 end
 
+-- Players have no creature type, and some creatures don't either, so the box
+-- only shows when there's something to put in it. A secret type can't be
+-- checked, so it shows as given.
+local function ShowCreatureType(frame, isPlayer, creatureType)
+	local box = frame.TypeBox
+	if not box then
+		return
+	end
+	if not frame.showCreatureType or isPlayer then
+		box:Hide()
+		return
+	end
+	if issecretvalue(creatureType) then
+		box.Text:SetText(creatureType)
+		box:Show()
+		return
+	end
+	box.Text:SetText(creatureType or "")
+	box:SetShown(creatureType ~= nil and creatureType ~= "")
+end
+
 function Level.Update(frame, unit)
 	local isPlayer = UnitIsPlayer(unit)
 	local classToken
@@ -235,14 +265,14 @@ function Level.Update(frame, unit)
 		end
 	end
 	ShowLevel(frame, UnitLevel(unit), UnitClassification(unit), isPlayer, classToken)
-	if frame.TypeBox then
-		frame.TypeBox.Text:SetText(isPlayer and "" or (UnitCreatureType(unit) or ""))
+	local creatureType
+	if not isPlayer then
+		creatureType = UnitCreatureType(unit)
 	end
+	ShowCreatureType(frame, isPlayer, creatureType)
 end
 
 function Level.Preview(frame, sample)
 	ShowLevel(frame, sample.level, sample.classification or "normal", sample.class ~= nil, sample.class)
-	if frame.TypeBox then
-		frame.TypeBox.Text:SetText(sample.creatureType or "")
-	end
+	ShowCreatureType(frame, sample.class ~= nil, sample.creatureType)
 end

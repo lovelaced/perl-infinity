@@ -105,6 +105,13 @@ function Castbar.Create(frame)
 
 	CreateTimer(bar)
 
+	-- The spell name and time stay readable in front of the elite dragon.
+	if frame.spec.eliteMarker then
+		local front = ns.Box.TextLayer(bar, frame.Content)
+		text:SetParent(front)
+		bar.Time:SetParent(front)
+	end
+
 	local fade = bar:CreateAnimationGroup()
 	local alpha = fade:CreateAnimation("Alpha")
 	alpha:SetFromAlpha(1)

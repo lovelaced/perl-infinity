@@ -16,7 +16,9 @@ local function LayoutOptions(_, conf)
 		width = 136 + conf.width,
 		percent = conf.percent,
 		power = conf.power,
-		thick = false,
+		-- The small frames have no portrait to line up with, so the health
+		-- bar takes the room a thin bar would leave empty.
+		thick = true,
 		extras = 0,
 	}
 end

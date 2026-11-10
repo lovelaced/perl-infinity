@@ -25,8 +25,8 @@ end
 
 function Experience.Configure(frame, conf)
 	local slots = frame.extraSlots or {}
-	frame.XPBar = slots.xp and Build.ExtraBar(frame, slots.xp) or nil
-	frame.RepBar = slots.rep and Build.ExtraBar(frame, slots.rep) or nil
+	frame.XPBar = Build.ExtraBar(frame, "xp", slots.xp)
+	frame.RepBar = Build.ExtraBar(frame, "rep", slots.rep)
 	frame.xpRemaining = conf.xpRemaining
 	if frame.XPBar and not frame.XPBar.Rested then
 		local rested = frame.XPBar:CreateTexture(nil, "BORDER")
@@ -36,6 +36,11 @@ function Experience.Configure(frame, conf)
 		rested:SetPoint("BOTTOMLEFT", frame.XPBar:GetStatusBarTexture(), "BOTTOMRIGHT")
 		frame.XPBar.Rested = rested
 	end
+end
+
+function Experience.Disable(frame)
+	frame.XPBar = Build.ExtraBar(frame, "xp", nil)
+	frame.RepBar = Build.ExtraBar(frame, "rep", nil)
 end
 
 local function ShowXP(bar, current, maximum, rested, remaining)

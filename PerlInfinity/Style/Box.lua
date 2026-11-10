@@ -26,6 +26,16 @@ function Box.Raise(frame, content, layer)
 	frame:SetFrameLevel(content:GetFrameLevel() + layer)
 end
 
+-- A holder for text that must stay readable in front of the elite dragon.
+-- It's a child of `parent` (a box or the cast bar), so it still fades and
+-- hides with it, but it's drawn at the front.
+function Box.TextLayer(parent, content)
+	local layer = CreateFrame("Frame", nil, parent)
+	layer:SetAllPoints()
+	Box.Raise(layer, content, Box.LEVEL.FRONT)
+	return layer
+end
+
 -- How far a glow reaches past the region it surrounds. The bright line sits
 -- 1 to 4 pixels inside the edge texture, so this puts it just outside the
 -- boxes' own edges.

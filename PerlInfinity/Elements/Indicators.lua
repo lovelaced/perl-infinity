@@ -266,6 +266,7 @@ end
 
 function StateIcon.Configure(frame, conf)
 	frame.restAnimation = conf.restAnimation
+	frame.restGlow = conf.restGlow ~= false
 	local zzz = frame.RestIcon
 	zzz:ClearAllPoints()
 	-- Above the portrait, where nothing else sits; the Zzz drift up from there.
@@ -301,7 +302,11 @@ local function ShowState(frame, inCombat, resting)
 		if not frame.RestLoop:IsPlaying() then
 			frame.RestLoop:Play()
 		end
-		frame.RestGlow:Start(REST_COLOR, REST_PULSE)
+		if frame.restGlow then
+			frame.RestGlow:Start(REST_COLOR, REST_PULSE)
+		else
+			frame.RestGlow:Stop()
+		end
 	else
 		StopResting(frame)
 	end

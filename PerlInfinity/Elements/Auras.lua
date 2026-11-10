@@ -388,7 +388,10 @@ end
 -- Each aura has to land in exactly one group. "PLAYER" and "!PLAYER" split
 -- them cleanly into yours and everyone else's. The isFromPlayerOrPlayerPet
 -- field can't do that: it's about any player, not just you.
-function AuraHost.Groups(auras, global, hostile)
+-- own: your own frame, where nearly every buff is yours, so "Show mine
+-- bigger" would just make them all big. It applies to other frames only.
+function AuraHost.Groups(auras, global, hostile, own)
+	local bigOwn = global.bigOwn and not own
 	local groups = {}
 	local function Add(key, filter, candidates, size, harmful, mine, stealable)
 		groups[#groups + 1] = {
@@ -400,7 +403,7 @@ function AuraHost.Groups(auras, global, hostile)
 
 	if auras.buffs then
 		local size = auras.buffSize
-		local bigSize = global.bigOwn and size * BIG or size
+		local bigSize = bigOwn and size * BIG or size
 		if auras.buffFilter == "castable" then
 			Add("buffs", "HELPFUL|RAID", nil, size, false, false, false)
 		elseif auras.buffFilter == "mine" then
@@ -411,7 +414,7 @@ function AuraHost.Groups(auras, global, hostile)
 				Add("stealable", "HELPFUL", { isStealable = true }, bigSize, false, false, true)
 			end
 			local notStealable = steal and { isStealable = false } or nil
-			if global.bigOwn then
+			if bigOwn then
 				Add("buffsMine", "HELPFUL|PLAYER", notStealable, bigSize, false, true, false)
 				Add("buffs", "HELPFUL|!PLAYER", notStealable, size, false, false, false)
 			else
@@ -423,12 +426,12 @@ function AuraHost.Groups(auras, global, hostile)
 	if auras.debuffs then
 		local first = #groups + 1
 		local size = auras.debuffSize
-		local bigSize = global.bigOwn and size * BIG or size
+		local bigSize = bigOwn and size * BIG or size
 		if auras.debuffFilter == "dispellable" then
 			Add("debuffs", "HARMFUL|RAID", nil, size, true, false, false)
 		elseif auras.debuffFilter == "mine" then
 			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
-		elseif global.bigOwn and hostile then
+		elseif bigOwn and hostile then
 			Add("debuffsMine", "HARMFUL|PLAYER", nil, bigSize, true, true, false)
 			Add("debuffs", "HARMFUL|!PLAYER", nil, size, true, false, false)
 		else
@@ -569,8 +572,9 @@ end
 local ENCHANT_SLOTS = { "MainHand", "OffHand", "Ranged" }
 local ENCHANT_GROUP = { key = "enchants", harmful = false, mine = true, stealable = false }
 
+-- Enchants are only ever on your own frame, so they match your buffs.
 local function EnchantSize(auras)
-	return Round(ns.db.auras.bigOwn and auras.buffSize * BIG or auras.buffSize)
+	return Round(auras.buffSize)
 end
 
 local function ConfigureEnchants(conf, container)
@@ -596,7 +600,7 @@ local function ConfigureEnchants(conf, container)
 end
 
 function Auras.Configure(frame, conf)
-	frame.auraGroups = frame.spec.layout == "Raid" and RaidGroups(conf) or AuraHost.Groups(conf.auras, ns.db.auras, frame.spec.hostile)
+	frame.auraGroups = frame.spec.layout == "Raid" and RaidGroups(conf) or AuraHost.Groups(conf.auras, ns.db.auras, frame.spec.hostile, frame.kind == "player")
 	if frame.preview then
 		return
 	end

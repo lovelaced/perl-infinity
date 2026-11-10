@@ -1199,8 +1199,9 @@ describe("Perl Infinity weapon enchants", function()
       expect(button.testCancelButtons).toBe("RightButtonUp")
       local slot = h.env.AuraContainerItemEnchantmentSlot[name]
       expect(container:IsItemEnchantmentEnabled(slot)).toBe(true)
+      -- The same size as your buffs: "Show mine bigger" skips your own frame.
       local width = button:GetSize()
-      expect(Harness.Secret.raw(width)).toBe(31)
+      expect(Harness.Secret.raw(width)).toBe(F.db.player.auras.buffSize)
     end
   end)
 
@@ -1336,7 +1337,10 @@ describe("Perl Infinity and your own buffs and debuffs", function()
     local width = buff:GetSize()
     expect(Harness.Secret.raw(width)).toBe(F.db.player.auras.buffSize)
     expect(buff.testCancelButtons).toBe("RightButtonUp")
-    expect(icons:GetAuraGroupFrame("buffsMine", 1).testCancelButtons).toBe("RightButtonUp")
+    -- Your own frame keeps every buff the same size, so there's no separate
+    -- bigger group for the ones you cast, even with "Show mine bigger" on.
+    expect(F.db.auras.bigOwn).toBe(true)
+    expect(icons.groups.buffsMine).toBeNil()
     expect(icons:GetAuraGroupFrame("debuffs", 1).testCancelButtons).toBe(nil)
     for _, obj in ipairs(h.widgets.all) do
       if obj.kind == "party" and obj.unit == "party1" then

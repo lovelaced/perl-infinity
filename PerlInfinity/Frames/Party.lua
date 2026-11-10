@@ -136,7 +136,7 @@ Frames:Define("partytarget", {
 		return ns.db.party.scale * TARGET_SCALE
 	end,
 	layoutOptions = function(_, conf)
-		return { width = conf.targetWidth, percent = false, power = false, thick = false, extras = 0 }
+		return { width = conf.targetWidth, percent = false, power = false, thick = true, extras = 0 }
 	end,
 	elements = { "Health", "Name", "Level", "RaidIcon" },
 	refreshEvents = {},
@@ -164,7 +164,7 @@ Frames:Define("partypet", {
 		return math.max(ns.db.party.petScale, 0.1)
 	end,
 	layoutOptions = function()
-		return { width = 100, percent = false, power = true, thick = false, extras = 0 }
+		return { width = 100, percent = false, power = true, thick = true, extras = 0 }
 	end,
 	elements = { "Health", "Power", "Name", "Level", "Auras", "RaidIcon" },
 	refreshEvents = { "UNIT_PET" },
