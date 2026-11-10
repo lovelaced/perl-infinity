@@ -10,7 +10,7 @@
 [![Game version](https://img.shields.io/badge/WoW%3A%20Forever-1.60.1-2b6cb0?style=flat-square)](#install)
 [![Latest version](https://img.shields.io/github/v/tag/lovelaced/perl-infinity?style=flat-square&label=version)](https://github.com/lovelaced/perl-infinity/tags)
 
-<!-- TODO: add a hero screenshot from the game at assets/screenshots/party-and-target.png -->
+<img src="assets/screenshots/player-target-party.jpg" alt="Perl Infinity's player, target and party frames in a battleground, each with its buffs, with player names blurred" width="600">
 
 </div>
 
