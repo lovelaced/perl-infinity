@@ -2,6 +2,7 @@
 #   make gen test lint            regenerate API data, run the harness, run the linters
 #   make test MODE=field T=boot   one spec pattern in one secrecy mode
 #   make lint STRICT=1            fail on lint errors (CI)
+#   make livecheck                every setting changed live vs. after a reload (slow, parallel)
 
 LUAJIT   ?= $(shell command -v luajit 2>/dev/null || echo /opt/homebrew/bin/luajit)
 LUACHECK ?= $(shell command -v luacheck 2>/dev/null || echo $(HOME)/.luarocks/bin/luacheck)
@@ -9,6 +10,8 @@ MODE     ?= strict
 FUZZ     ?= 0
 T        ?=
 STRICT   ?= 0
+JOBS     ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+LIVECHECK_OUT = tools/out/livecheck
 
 WOW_DIR  ?= /Applications/World of Warcraft/_forever_
 ADDON_DST = $(WOW_DIR)/Interface/AddOns/PerlInfinity/
@@ -16,13 +19,14 @@ SV_FILE  ?= $(shell ls "$(WOW_DIR)"/WTF/Account/*/SavedVariables/PerlInfinity.lu
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 RELEASE   = .release
 
-.PHONY: help gen test test-all lint preview deploy readsv package clean
+.PHONY: help gen test test-all lint livecheck preview deploy readsv package clean
 
 help:
 	@echo "make gen       regenerate tests/harness/api_tags.lua, blizzard_templates.lua, tools/out/wow_globals.lua"
 	@echo "make test      run the offline harness (MODE=strict|field|open, T=pattern, FUZZ=N)"
 	@echo "make test-all  run the harness in all three modes"
 	@echo "make lint      tools/lint.lua + luacheck on PerlInfinity/ (STRICT=1 fails on findings)"
+	@echo "make livecheck change every setting live and compare with a reload (JOBS=N, T=setting pattern)"
 	@echo "make preview   dump frame layouts (tools/layout.lua) and render PNGs (tools/preview.py, needs Pillow)"
 	@echo "make deploy    copy PerlInfinity/ into the WoW: Forever AddOns folder"
 	@echo "make readsv    report on PerlInfinityLog from the account SavedVariables"
@@ -47,6 +51,14 @@ lint:
 	else \
 		echo "luacheck not found ($(LUACHECK)); skipped"; \
 	fi
+
+# Every setting the options window offers, changed live and compared with a
+# fresh login that has it saved. Takes a few minutes; jobs run in parallel and
+# the summary at the end decides the exit code.
+livecheck:
+	rm -rf $(LIVECHECK_OUT) && mkdir -p $(LIVECHECK_OUT)
+	$(LUAJIT) tools/livecheck.lua --jobs | xargs -P $(JOBS) -I{} sh -c '$(LUAJIT) tools/livecheck.lua {} --out=$(LIVECHECK_OUT) $(if $(T),--only=$(T))' || true
+	$(LUAJIT) tools/livecheck.lua --summary=$(LIVECHECK_OUT)
 
 preview:
 	rm -rf tools/out/layout
