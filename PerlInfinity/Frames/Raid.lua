@@ -244,6 +244,7 @@ local function Apply()
 	local blockWidth = vertical and columns * (width + conf.groupGap) or width * columnLength
 	local blockHeight = vertical and (height + conf.spacing) * columnLength + 12 or columns * (height + conf.groupGap)
 	ns.Movers:SetSize("raid", blockWidth, blockHeight)
+	ns.Movers:Rescale("raid")
 end
 
 -- Raid buttons are made ahead of time, out of combat, so a raid forming
@@ -381,6 +382,7 @@ local function ApplyPets()
 	end)
 	ns.Movers:SetEnabled("raidpets", conf.enabled and conf.pets and not conf.petsAttached)
 	ns.Movers:SetSize("raidpets", width, (height + conf.spacing) * 7)
+	ns.Movers:Rescale("raidpets")
 	for _, child in ipairs(petHeader.children) do
 		child:Configure()
 	end

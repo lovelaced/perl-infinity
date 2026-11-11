@@ -272,8 +272,15 @@ end
 -- The header
 ---------------------------------------------------------------------------
 
+-- "Only in one-group raids" can't be written as a macro condition, so the
+-- raid's size is checked here, each time the rule is set: by every settings
+-- change and, out of combat, every roster change.
 local function Visibility(conf)
-	if conf.inRaid == "hide" then
+	local hideInRaid = conf.inRaid == "hide"
+	if conf.inRaid == "smallRaid" then
+		hideInRaid = not (IsInRaid() and GetNumGroupMembers() <= 5)
+	end
+	if hideInRaid then
 		return "[group:raid] hide; [group:party] show; hide"
 	end
 	return "[group] show; hide"
@@ -325,16 +332,18 @@ local function Apply()
 	end
 end
 
--- "Only in one-group raids" can't be written as a macro condition, so it's
--- re-checked whenever the roster changes, out of combat.
+-- The raid's size can change without any setting changing.
 local function UpdateSmallRaid()
 	local conf = ns.db.party
 	if conf.inRaid ~= "smallRaid" or not header or not conf.enabled then
 		return
 	end
 	Combat:Run(Combat:Key(header, "smallRaid"), function()
-		local small = IsInRaid() and GetNumGroupMembers() <= 5
-		RegisterAttributeDriver(header, "state-visibility", small and "[group] show; hide" or "[group:raid] hide; [group:party] show; hide")
+		-- Settings may have changed while this waited for combat to end.
+		local now = ns.db.party
+		if now.enabled and now.inRaid == "smallRaid" then
+			RegisterAttributeDriver(header, "state-visibility", Visibility(now))
+		end
 	end)
 end
 

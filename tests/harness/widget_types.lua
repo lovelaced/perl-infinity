@@ -310,24 +310,35 @@ function T.install(W, h)
     SetMask = function(self, m) st(self).mask = m end,
   }
 
+  -- The client lines text up when the text changes. A new justification on
+  -- text that's already showing waits for the next different text, so tests
+  -- read laidOutJustifyH to see where the text really sits.
+  local function layOut(s, before)
+    if s.text ~= before or s.laidOutJustifyH == nil then s.laidOutJustifyH = s.justifyH end
+  end
+
   impl.FontString = {
     SetText = function(self, text)
       local s = st(self)
+      local before = s.text
       s.text = text ~= nil and raw(text) or nil
       if type(s.text) == "number" then s.text = tostring(s.text) end
       s.textSecret = Secret.is(text) or nil
+      layOut(s, before)
     end,
     GetText = function(self) return st(self).text end,
     SetFormattedText = function(self, fmt, ...)
       local s = st(self)
+      local before = s.text
       local out = Secret.format(fmt, ...)
       s.text = raw(out)
       s.textSecret = Secret.is(out) or nil
       if s.textSecret then s.aspects.Text = true end
       s.formatted = { fmt = raw(fmt), n = select("#", ...), ... }
+      layOut(s, before)
     end,
     SetTextToFit = function(self, text) impl.FontString.SetText(self, text) end,
-    ClearText = function(self) st(self).text = nil end,
+    ClearText = function(self) local s = st(self); local before = s.text; s.text = nil; layOut(s, before) end,
     SetTextColor = function(self, r, g, b, a) st(self).textColor = { raw(r), raw(g), raw(b), raw(a) or 1 } end,
     GetTextColor = function(self) local c = st(self).textColor or { 1, 1, 1, 1 }; return c[1], c[2], c[3], c[4] end,
     SetFont = function(self, path, size, flags)
@@ -344,7 +355,11 @@ function T.install(W, h)
       if type(fo) == "table" and fo.GetFont then s.font, s.fontSize, s.fontFlags = fo:GetFont() end
     end,
     GetFontObject = function(self) return st(self).fontObject end,
-    SetJustifyH = function(self, j) st(self).justifyH = j end,
+    SetJustifyH = function(self, j)
+      local s = st(self)
+      s.justifyH = j
+      if s.text == nil or s.text == "" then s.laidOutJustifyH = j end
+    end,
     GetJustifyH = function(self) return st(self).justifyH or "CENTER" end,
     SetJustifyV = function(self, j) st(self).justifyV = j end,
     GetJustifyV = function(self) return st(self).justifyV or "MIDDLE" end,

@@ -81,6 +81,8 @@ function ComboPoints.Configure(frame, conf)
 	frame.ComboHolder:SetShown(dots)
 	frame.ComboBox:SetShown(Util.HasBit(mask, 2))
 	frame.ComboFill:SetShown(Util.HasBit(mask, 3))
+	-- Follows the bar texture setting like every other bar.
+	frame.ComboFill:SetStatusBarTexture(Media.BarTexture())
 
 	local anchor = (frame.PortraitBox and frame.PortraitBox:IsShown()) and frame.PortraitBox or frame.StatsBox
 	local position = conf.comboPosition

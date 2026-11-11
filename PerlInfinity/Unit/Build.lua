@@ -146,7 +146,16 @@ function Build.ApplyLayout(self, conf)
 	self:SetAlpha(ns.db.look.frameAlpha)
 	local textAlpha = ns.db.look.textAlpha
 	self.NameText:SetAlpha(textAlpha)
-	self.NameText:SetJustifyH(ns.db.look.centerNames and "CENTER" or "LEFT")
+	local justify = ns.db.look.centerNames and "CENTER" or "LEFT"
+	if self.nameJustify ~= justify then
+		self.nameJustify = justify
+		self.NameText:SetJustifyH(justify)
+		-- The game lines up text again only when the text itself changes,
+		-- so a name already on screen would stay put until a reload. Clearing
+		-- it here lets the update after every Configure (or the preview's
+		-- sample) draw it fresh in its new place.
+		self.NameText:SetText("")
+	end
 	self.Health.Text:SetAlpha(textAlpha)
 	self.Power.Text:SetAlpha(textAlpha)
 

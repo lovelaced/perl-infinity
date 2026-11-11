@@ -553,6 +553,10 @@ end
 
 function GroupNumber.Disable(frame)
 	frame.GroupTab:Hide()
+	-- Stop adding the group to the name. The update after every Configure
+	-- redraws the name without it.
+	frame.groupNumberStyle = "hidden"
+	frame.OnNameUpdated = nil
 end
 
 function GroupNumber.Update(frame)

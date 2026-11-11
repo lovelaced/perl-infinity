@@ -29,7 +29,9 @@ local function Resolve()
 end
 
 local function Matches(prefix, path)
-	if prefix == "" then
+	-- An empty path means everything changed: a profile switch, a full reset
+	-- or an import. Everyone hears about it, whatever they listen for.
+	if prefix == "" or path == "" then
 		return true
 	end
 	local n = #prefix

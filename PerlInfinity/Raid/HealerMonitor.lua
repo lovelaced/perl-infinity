@@ -64,6 +64,12 @@ Frames:Define("healers", {
 				return unit .. "target"
 			end)
 			frame.HealerTarget:SetPoint("TOPLEFT", frame, "TOPRIGHT", 2, 0)
+			-- Rows are made when the raid forms, after the window was set
+			-- up, so each one checks the switch itself.
+			if not ns.db.healers.targets then
+				UnregisterUnitWatch(frame.HealerTarget)
+				frame.HealerTarget:Hide()
+			end
 		end)
 	end,
 })

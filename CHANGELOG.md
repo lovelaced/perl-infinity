@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.3 (unreleased)
+
+### Fixed
+
+- **Center names** moves names as soon as you turn it on or off. Before, they stayed where they were until you reloaded.
+- Switching profiles, resetting your profile or importing one now changes colors, shading and the bar texture right away. Before, the old look stayed on screen until you reloaded.
+- **Frame size** on the Raid page resizes raid frames and raid pets right away.
+- Choosing **Only in one-group raids** under **In a raid** hides party frames in a bigger raid right away, instead of waiting for someone to join or leave.
+- Setting **Group number** to **Hidden** takes the group number out of your name right away.
+- The combo point fill on the target frame follows **Bar texture** like every other bar.
+- **Number the tanks** and the healer window's **Show their targets** now stay the way you set them after a reload. Rows made when the raid formed used to miss them.
+
 ## 1.2.2 (2026-11-10)
 
 ### Changed

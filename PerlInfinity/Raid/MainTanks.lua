@@ -57,6 +57,9 @@ Frames:Define("tanks", {
 		local number = frame.Content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		number:SetPoint("RIGHT", frame, "LEFT", -2, 0)
 		frame.TankNumber = number
+		-- Rows are made when the raid forms, after the window was set up, so
+		-- each one numbers itself. It's already on its header's list.
+		number:SetText(ns.db.tanks.numbers and #frame.header.children or "")
 	end,
 })
 

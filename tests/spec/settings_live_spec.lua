@@ -578,12 +578,163 @@ describe("Perl Infinity player reports, November 2026", function()
     expect(raw(frame.RestGlow:GetAlpha())).toBe(1)
   end)
 
-  it("centers names when you ask", function()
+  -- A player saw names stay on the left until they reloaded: the game only
+  -- lines text up again when the text changes, and the name hadn't.
+  it("centers names right away, and puts them back on the left", function()
     local h, F = boot()
-    expect(F.Frames:Get("player").NameText:GetJustifyH()).toBe("LEFT")
+    h.world:setTarget(hostile())
+    h.world:setParty({ { class = "PRIEST" } })
+    h:advance(0.5)
+    F.Options:Open()
+    F.Options:ShowPage("party")
+    h:advance(0.05)
+    local function names()
+      local list = { F.Frames:Get("player").NameText, F.Frames:Get("target").NameText, find(h, "party", "party1").NameText }
+      for _, obj in ipairs(h.widgets.all) do
+        if type(obj) == "table" and obj.preview and obj.kind == "party" and obj:IsVisible() then
+          list[#list + 1] = obj.NameText
+        end
+      end
+      return list
+    end
+    local function expectNames(justify)
+      for _, text in ipairs(names()) do
+        expect(h.widgets.inspect(text).laidOutJustifyH).toBe(justify)
+        expect((raw(text:GetText()) or "") ~= "").toBe(true)
+      end
+    end
+    expectNames("LEFT")
     F.Config:Set("look.centerNames", true)
     h:advance(0.3)
-    expect(F.Frames:Get("player").NameText:GetJustifyH()).toBe("CENTER")
+    expectNames("CENTER")
+    F.Config:Set("look.centerNames", false)
+    h:advance(0.3)
+    expectNames("LEFT")
+  end)
+end)
+
+describe("Perl Infinity profiles", function()
+  local function look(h, F)
+    local player = F.Frames:Get("player")
+    local r, g, b = player.NameBox:GetBackdropColor()
+    return string.format("%.2f,%.2f,%.2f", raw(r), raw(g), raw(b)), raw(player.Health:GetStatusBarTexture():GetTexture())
+  end
+
+  -- Switching profiles or resetting everything left the old background and
+  -- bar texture on screen until a reload, because the boxes and bars only
+  -- listened for changes to the Appearance settings, and a whole new profile
+  -- didn't count as one.
+  it("switches the look right away, and resets it right away", function()
+    local h, F = boot()
+    local defaultLook = { look(h, F) }
+    F.Profiles:Create("Blue")
+    F.Profiles:Use("Blue")
+    F.Config:Set("look.background", "ff336699")
+    F.Config:Set("look.texture", "flat")
+    h:advance(0.3)
+    local blueLook = { look(h, F) }
+    expect(blueLook[1]).toBe("0.20,0.40,0.60")
+
+    F.Profiles:Use("Default")
+    h:advance(0.3)
+    local back = { look(h, F) }
+    expect(back[1]).toBe(defaultLook[1])
+    expect(back[2]).toBe(defaultLook[2])
+
+    F.Profiles:Use("Blue")
+    h:advance(0.3)
+    local again = { look(h, F) }
+    expect(again[1]).toBe(blueLook[1])
+    expect(again[2]).toBe(blueLook[2])
+
+    F.Config:Reset("")
+    h:advance(0.3)
+    local reset = { look(h, F) }
+    expect(reset[1]).toBe(defaultLook[1])
+    expect(reset[2]).toBe(defaultLook[2])
+  end)
+end)
+
+describe("Perl Infinity settings that waited for a reload", function()
+  -- Field mode, where your raid index and class read as plain values the way
+  -- they do in the game; strict mode keeps both secret.
+  it("takes the group number back out of your name", function()
+    local h, F = boot({ mode = "field" })
+    F.Config:Set("player.groupNumber", "name")
+    h.world:setRaid(10)
+    h:advance(0.5)
+    local name = F.Frames:Get("player").NameText
+    expect(raw(name:GetText())).toBe("Testplayer (1)")
+    F.Config:Set("player.groupNumber", "hidden")
+    h:advance(0.3)
+    expect(raw(name:GetText())).toBe("Testplayer")
+  end)
+
+  it("resizes raid frames and detached raid pets by the raid scale", function()
+    local h, F = boot()
+    F.Config:Set("raid.petsAttached", false)
+    h.world:setRaid(10)
+    h:advance(1)
+    F.Config:Set("raid.scale", 1.25)
+    h:advance(0.3)
+    expect(raw(F.Movers:Get("raid"):GetScale())).toBeCloseTo(1.25, 0.001)
+    expect(raw(F.Movers:Get("raidpets"):GetScale())).toBeCloseTo(1.25, 0.001)
+  end)
+
+  it("hides the party in a big raid once you pick one-group raids only", function()
+    local h, F = boot()
+    h.world:setRaid(15)
+    h:advance(1)
+    local header = h.env.PerlInfinity_PartyHeader
+    expect(header:IsShown()).toBe(true)
+    F.Config:Set("party.inRaid", "smallRaid")
+    h:advance(0.3)
+    expect(header:IsShown()).toBe(false)
+    F.Config:Set("party.inRaid", "keep")
+    h:advance(0.3)
+    expect(header:IsShown()).toBe(true)
+  end)
+
+  -- These two broke the other way around: right when changed, wrong after a
+  -- reload, because the rows are made when the raid forms.
+  it("numbers tank rows made after a reload", function()
+    local h, F = boot()
+    F.Config:Set("tanks.enabled", true)
+    F.Config:Set("tanks.numbers", true)
+    h:advance(0.3)
+    local h2 = h:reload()
+    h2.world:setRaid(10, function(i) if i == 2 or i == 3 then return { raidRole = "MAINTANK" } end end)
+    h2:advance(1)
+    local rows = visibleChildren(h2.env.PerlInfinity_TankHeader)
+    expect(#rows).toBe(2)
+    expect(raw(rows[1].TankNumber:GetText())).toBe("1")
+    expect(raw(rows[2].TankNumber:GetText())).toBe("2")
+  end)
+
+  it("keeps healer targets off after a reload", function()
+    local h, F = boot()
+    F.Config:Set("healers.enabled", true)
+    F.Config:Set("healers.targets", false)
+    h:advance(0.3)
+    local h2 = h:reload()
+    h2.world:setRaid(10)
+    h2.world:setTarget({ name = "Defias Thug", npc = true, reaction = 2 }, "raid2")
+    h2:advance(1)
+    local rows = visibleChildren(h2.env.PerlInfinity_HealerHeader)
+    expect(#rows > 0).toBe(true)
+    for _, row in ipairs(rows) do
+      expect(row.HealerTarget:IsShown()).toBe(false)
+    end
+  end)
+
+  it("gives the combo point fill the new bar texture", function()
+    local h, F = boot({ mode = "field" })
+    h.world:setTarget(hostile())
+    h:advance(0.3)
+    F.Config:Set("look.texture", "flat")
+    h:advance(0.3)
+    local fill = F.Frames:Get("target").ComboFill:GetStatusBarTexture():GetTexture()
+    expect(raw(fill)).toBe(F.Media.BarTexture("flat"))
   end)
 end)
 
