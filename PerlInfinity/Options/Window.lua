@@ -9,6 +9,18 @@
 -- It opens at a comfortable size for the screen and can be resized from the
 -- corner grip. The size and whether the preview shows are remembered for the
 -- account. It's created the first time it opens and costs nothing until then.
+--
+-- While Edit Mode is open, the window docks at the side of the screen as a
+-- slim panel, so you can change how frames look while you move them:
+--
+--   [search] [page v]
+--   settings for the page
+--   [Defaults]  [Show preview]  [Close]
+--
+-- A dropdown picks the page in place of the list, and the frames on screen
+-- (real ones, or Edit Mode's samples) stand in for the preview. Clicking a
+-- frame in Edit Mode turns to its page. Leaving Edit Mode brings the full
+-- window back, or closes the panel if Edit Mode opened it.
 local _, ns = ...
 
 local Options = ns:NewModule("Options")
@@ -19,15 +31,26 @@ local DEFAULT_WIDTH, DEFAULT_HEIGHT = 1240, 800
 local MIN_HEIGHT = 560
 local NAV_WIDTH = 190
 local LIST_LEFT = NAV_WIDTH + 30 -- where the settings list starts
+local LIST_TOP = -38
 local SCROLLBAR = 30 -- room right of the list for its scroll bar
 local MARGIN = 14
 -- The list takes about this much; the preview gets the rest, within limits.
 local LIST_COMFORT = 620
 local PREVIEW_MIN, PREVIEW_MAX = 260, 480
 
+-- Docked beside Edit Mode: the list starts at the left edge, under the
+-- search box and page dropdown, and the panel sits at the right of the
+-- screen between the minimap and the action bars until you move it.
+local DOCK_LIST_LEFT = 24
+local DOCK_LIST_TOP = -68
+local DOCK_MIN_HEIGHT = 420
+local DOCK_EDGE = 16
+local DOCK_TOP, DOCK_BOTTOM = 190, 150
+
 local window
 local current -- key of the page shown
 local rowsByPage = {}
+local openedForEditMode = false -- closes again when Edit Mode does
 
 ---------------------------------------------------------------------------
 -- Navigation
@@ -99,7 +122,35 @@ local function BuildNav(frame)
 	end
 end
 
+-- The docked panel's stand-in for the page list.
+local function BuildPagePicker(frame)
+	local picker = CreateFrame("DropdownButton", nil, frame, "WowStyle1DropdownTemplate")
+	picker:SetPoint("LEFT", frame.Search, "RIGHT", 12, 0)
+	picker:SetWidth(240)
+	picker:SetDefaultText(L.SEARCH_RESULTS)
+	local function IsCurrent(key)
+		return current == key
+	end
+	local function Pick(key)
+		frame.Search:SetText("")
+		Options:ShowPage(key)
+	end
+	picker:SetupMenu(function(_, root)
+		local lastGroup
+		for _, page in ipairs(ns.OptionPages.list) do
+			if page.group ~= lastGroup then
+				root:CreateTitle(L.PageGroups[page.group])
+				lastGroup = page.group
+			end
+			root:CreateRadio(L.Pages[page.key], IsCurrent, Pick, page.key)
+		end
+	end)
+	picker:Hide()
+	frame.PagePicker = picker
+end
+
 local function HighlightNav()
+	window.PagePicker:GenerateMenu()
 	for key, button in pairs(window.NavButtons) do
 		if key == current then
 			button.Label:SetFontObject("GameFontHighlight")
@@ -199,32 +250,55 @@ local function State()
 	return global.optionsWindow
 end
 
+local function Docked()
+	return window ~= nil and window.docked == true
+end
+
+-- Docked, the preview starts hidden, since the frames on screen show every
+-- change. The full window and the docked panel each remember their choice.
+local function PreviewShown()
+	if Docked() then
+		return State().dockedPreview == true
+	end
+	return not State().previewHidden
+end
+
 local function MinWidth(showPreview)
-	local width = LIST_LEFT + Widgets.MIN_WIDTH + SCROLLBAR + MARGIN
+	local width = (Docked() and DOCK_LIST_LEFT or LIST_LEFT) + Widgets.MIN_WIDTH + SCROLLBAR + MARGIN
 	if showPreview then
 		width = width + PREVIEW_MIN
 	end
 	return width
 end
 
+local function MinHeight()
+	return Docked() and DOCK_MIN_HEIGHT or MIN_HEIGHT
+end
+
 -- Hands the window's width to the list and the preview, then refits the
 -- rows to the list.
 local function Relayout()
-	local showPreview = not State().previewHidden
-	local room = window:GetWidth() - LIST_LEFT - SCROLLBAR - MARGIN
+	local showPreview = PreviewShown()
+	local listLeft = Docked() and DOCK_LIST_LEFT or LIST_LEFT
+	local room = window:GetWidth() - listLeft - SCROLLBAR - MARGIN
 	local previewWidth = 0
 	if showPreview then
 		previewWidth = ns.Util.Clamp(room - LIST_COMFORT, PREVIEW_MIN, PREVIEW_MAX)
 	end
 	window.Preview:SetWidth(math.max(previewWidth, 1))
 	window.Preview:SetShown(showPreview)
+	window.Scroll:SetPoint("TOPLEFT", listLeft, Docked() and DOCK_LIST_TOP or LIST_TOP)
 	window.Scroll:SetPoint("BOTTOMRIGHT", -(MARGIN + previewWidth + SCROLLBAR), 44)
 	window.List:SetWidth(math.max(room - previewWidth, Widgets.MIN_WIDTH))
 	window.PreviewToggle:SetText(showPreview and L.BUTTON_HIDE_PREVIEW or L.BUTTON_SHOW_PREVIEW)
 	-- The window can't be dragged narrower than its contents need.
 	local maxWidth, maxHeight = UIParent:GetWidth(), UIParent:GetHeight()
-	window:SetResizeBounds(math.min(MinWidth(showPreview), maxWidth), math.min(MIN_HEIGHT, maxHeight), maxWidth, maxHeight)
-	window.Grip:SetMinWidth(math.min(MinWidth(showPreview), maxWidth))
+	local minWidth, minHeight = math.min(MinWidth(showPreview), maxWidth), math.min(MinHeight(), maxHeight)
+	window:SetResizeBounds(minWidth, minHeight, maxWidth, maxHeight)
+	window.Grip:SetMinWidth(minWidth)
+	if window.Grip.SetMinHeight then
+		window.Grip:SetMinHeight(minHeight)
+	end
 	RefreshShown()
 end
 
@@ -239,15 +313,86 @@ local function FitToScreen()
 	window:SetSize(width, height)
 end
 
+-- Where the docked panel goes: where you last left it, or the right edge of
+-- the screen. Kept by its top left corner, so the grip resizes it the way
+-- you'd expect.
+local function PlaceDocked()
+	local saved = State().docked or {}
+	local screenWidth, screenHeight = UIParent:GetWidth(), UIParent:GetHeight()
+	local minWidth = MinWidth(PreviewShown())
+	local width = math.min(math.max(saved.width or minWidth, minWidth), screenWidth - 40)
+	local height = math.min(math.max(saved.height or (screenHeight - DOCK_TOP - DOCK_BOTTOM), DOCK_MIN_HEIGHT), screenHeight - 40)
+	window:SetSize(width, height)
+	window:ClearAllPoints()
+	if saved.x and saved.y then
+		window:SetPoint("TOPLEFT", UIParent, "TOPLEFT", saved.x, saved.y)
+	else
+		window:SetPoint("TOPLEFT", UIParent, "TOPLEFT", screenWidth - width - DOCK_EDGE, -math.min(DOCK_TOP, screenHeight - height - 20))
+	end
+end
+
+local function SaveDocked()
+	local left, top = window:GetLeft(), window:GetTop()
+	if not left or not top then
+		return
+	end
+	local state = State()
+	state.docked = {
+		x = math.floor(left + 0.5),
+		y = math.floor(top - UIParent:GetHeight() + 0.5),
+		width = math.floor(window:GetWidth() + 0.5),
+		height = math.floor(window:GetHeight() + 0.5),
+	}
+end
+
+-- Switches between the full window and the docked panel.
+local function Dock(on)
+	on = on and true or false
+	if Docked() == on then
+		return
+	end
+	if on then
+		-- Remember where the full window was, to put it back there.
+		local point, _, relativePoint, x, y = window:GetPoint(1)
+		window.fullPoint = point and { point, relativePoint, x, y } or nil
+		window.docked = true
+		PlaceDocked()
+	else
+		window.docked = false
+		window:ClearAllPoints()
+		local full = window.fullPoint
+		if full then
+			window:SetPoint(full[1], UIParent, full[2], full[3], full[4])
+		else
+			window:SetPoint("CENTER")
+		end
+		FitToScreen()
+	end
+	window.Nav:SetShown(not on)
+	window.PagePicker:SetShown(on)
+	window.EditModeButton:SetShown(not on)
+	window.PreviewToggle:ClearAllPoints()
+	window.PreviewToggle:SetPoint("RIGHT", on and window.CloseButton or window.EditModeButton, "LEFT", -8, 0)
+	Relayout()
+	ns.OptionPreview:Refresh()
+end
+
 local function TogglePreview()
 	local state = State()
-	state.previewHidden = not state.previewHidden or nil
+	if Docked() then
+		state.dockedPreview = not state.dockedPreview or nil
+	else
+		state.previewHidden = not state.previewHidden or nil
+	end
 	-- Showing the preview again may need a wider window.
-	local minWidth = MinWidth(not state.previewHidden)
+	local minWidth = MinWidth(PreviewShown())
 	if window:GetWidth() < minWidth then
 		window:SetWidth(math.min(minWidth, UIParent:GetWidth() - 40))
 	end
 	Relayout()
+	if Docked() then
+		SaveDocked()
+	end
 	ns.OptionPreview:Refresh()
 end
 
@@ -364,6 +509,9 @@ local function Build()
 	end)
 	drag:SetScript("OnDragStop", function()
 		frame:StopMovingOrSizing()
+		if frame.docked then
+			SaveDocked()
+		end
 	end)
 
 	local search = CreateFrame("EditBox", nil, frame, "SearchBoxTemplate")
@@ -379,10 +527,11 @@ local function Build()
 	frame.Search = search
 
 	BuildNav(frame)
+	BuildPagePicker(frame)
 
 	-- The settings list scrolls in the middle.
 	local scroll = CreateFrame("ScrollFrame", nil, frame)
-	scroll:SetPoint("TOPLEFT", LIST_LEFT, -38)
+	scroll:SetPoint("TOPLEFT", LIST_LEFT, LIST_TOP)
 	scroll:SetPoint("BOTTOMRIGHT", -(MARGIN + PREVIEW_MIN + SCROLLBAR), 44)
 	local bar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
 	bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
@@ -422,15 +571,17 @@ local function Build()
 	close:SetScript("OnClick", function()
 		frame:Hide()
 	end)
+	frame.CloseButton = close
 
+	-- The window stays open and docks beside Edit Mode.
 	local editMode = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
 	editMode:SetSize(210, 22)
 	editMode:SetPoint("RIGHT", close, "LEFT", -8, 0)
 	editMode:SetText(L.BUTTON_EDIT_MODE)
 	editMode:SetScript("OnClick", function()
-		frame:Hide()
 		ns.Movers:OpenEditMode()
 	end)
+	frame.EditModeButton = editMode
 
 	local previewToggle = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
 	previewToggle:SetSize(130, 22)
@@ -446,8 +597,12 @@ local function Build()
 	grip:SetPoint("BOTTOMRIGHT", -4, 4)
 	grip:Init(frame, MinWidth(true), MIN_HEIGHT)
 	grip.resizeStoppedCallback = function()
-		local state = State()
-		state.width, state.height = frame:GetWidth(), frame:GetHeight()
+		if frame.docked then
+			SaveDocked()
+		else
+			local state = State()
+			state.width, state.height = frame:GetWidth(), frame:GetHeight()
+		end
 		ns.OptionPreview:Refresh()
 	end
 	frame.Grip = grip
@@ -459,12 +614,19 @@ local function Build()
 		end
 	end)
 
+	-- Empty frames on screen show samples while the window is open.
 	frame:SetScript("OnShow", function()
 		PlaySound(SOUNDKIT.IG_MAINMENU_OPEN)
+		ns.Movers:RefreshSamples()
 	end)
 	frame:SetScript("OnHide", function()
 		PlaySound(SOUNDKIT.IG_MAINMENU_CLOSE)
 		ns.OptionPreview:Show(nil)
+		-- Closed while docked: the next time it opens outside Edit Mode, it's
+		-- the full window again.
+		openedForEditMode = false
+		Dock(false)
+		ns.Movers:RefreshSamples()
 	end)
 
 	-- Keep rows and previews in step with changes made anywhere.
@@ -496,13 +658,20 @@ function Options:ShowPage(key)
 	ns.OptionPreview:Show(page.preview)
 end
 
--- Opens the window, optionally on a page ("player", "raid"...).
+-- Opens the window, optionally on a page ("player", "raid"...). In Edit Mode
+-- it opens docked.
 function Options:Open(key)
 	if not window then
 		Build()
-	else
+	elseif not window.docked then
 		-- The screen or UI scale may have changed since last time.
 		FitToScreen()
+	end
+	if ns.Movers.editing then
+		if not window:IsShown() then
+			openedForEditMode = true
+		end
+		Dock(true)
 	end
 	window.Search:SetText("")
 	window:Show()
@@ -519,4 +688,56 @@ end
 
 function Options:IsShown()
 	return window ~= nil and window:IsShown()
+end
+
+function Options:IsDocked()
+	return Docked()
+end
+
+---------------------------------------------------------------------------
+-- Beside Edit Mode
+---------------------------------------------------------------------------
+
+-- Whether entering Edit Mode opens the panel by itself (account-wide).
+function Options:OpensWithEditMode()
+	return State().withEditMode ~= false
+end
+
+-- Saved only when off, so the account default stays on.
+function Options:SetOpensWithEditMode(on)
+	if on then
+		State().withEditMode = nil
+	else
+		State().withEditMode = false
+	end
+end
+
+function Options:EditModeEntered()
+	if window and window:IsShown() then
+		Dock(true)
+	elseif self:OpensWithEditMode() then
+		self:Open()
+	end
+end
+
+-- A panel Edit Mode opened closes with it; a window you had open before
+-- goes back to its full size.
+function Options:EditModeExited()
+	if not window or not window:IsShown() then
+		return
+	end
+	if openedForEditMode then
+		window:Hide()
+	else
+		Dock(false)
+	end
+	openedForEditMode = false
+end
+
+-- You clicked a frame in Edit Mode: show its settings.
+function Options:FollowFrame(key)
+	if window and window:IsShown() and window.docked then
+		window.Search:SetText("")
+		self:ShowPage(ns.QuickSettings.PageFor(key))
+	end
 end

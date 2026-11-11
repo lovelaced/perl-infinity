@@ -75,8 +75,8 @@ local function Button(key, onClick, extra)
 	return option
 end
 
+-- The options window stays open and docks beside Edit Mode.
 local function OpenEditMode()
-	ns.Options:Toggle()
 	ns.Movers:OpenEditMode()
 end
 
@@ -136,6 +136,17 @@ Pages.list = {
 			Header("HEADER_START"),
 			{ type = "text", key = "TEXT_START" },
 			Button("editMode", OpenEditMode),
+			-- Kept for the account, like the window's size.
+			{
+				type = "checkbox",
+				key = "options.withEditMode",
+				get = function()
+					return ns.Options:OpensWithEditMode()
+				end,
+				set = function(on)
+					ns.Options:SetOpensWithEditMode(on)
+				end,
+			},
 			Header("HEADER_MOUSE"),
 			Check("general.mouseoverHighlight"),
 			Drop("general.unitTooltips", { "always", "shift", "alt", "ctrl", "never" }),

@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.2.3 (unreleased)
+## Unreleased
+
+### New
+
+- **Options and Edit Mode, side by side.** Open Edit Mode and the Perl Infinity options open as a slim panel at the side of your screen, so you can move a frame and change how it looks without switching back and forth. Click a frame in Edit Mode to jump to its settings. Leave Edit Mode and the panel closes, or goes back to the full window if you had it open before. Drag the panel anywhere and it opens there next time. Turn off **Open with Edit Mode** on the General page if you'd rather open it yourself.
+- **Your frames show samples while you tweak them.** With the options window open, empty frames (no target, no focus, not in a party) show a faded sample in their real spot, so every change shows up where it'll be. A sample steps aside as soon as the real frame appears.
 
 ### Fixed
 
@@ -11,6 +16,7 @@
 - Setting **Group number** to **Hidden** takes the group number out of your name right away.
 - The combo point fill on the target frame follows **Bar texture** like every other bar.
 - **Number the tanks** and the healer window's **Show their targets** now stay the way you set them after a reload. Rows made when the raid formed used to miss them.
+- Sample frames in Edit Mode follow your changes from the Edit Mode popup, and step aside when you target something. Before, they kept the look they had when Edit Mode opened.
 
 ## 1.2.2 (2026-11-10)
 

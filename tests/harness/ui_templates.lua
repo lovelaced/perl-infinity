@@ -109,6 +109,9 @@ function U.install(h)
       function root:CreateButton(text, fn)
         obj.entries[#obj.entries + 1] = { kind = "button", text = text, fn = fn }
       end
+      function root:CreateTitle(text)
+        obj.entries[#obj.entries + 1] = { kind = "title", text = text }
+      end
       return root
     end
     function obj:SetupMenu(generator)
@@ -126,6 +129,16 @@ function U.install(h)
     end
     function obj:SetSelectionText(fn)
       self.selectionText = fn
+    end
+    function obj:SetDefaultText(text)
+      self.defaultText = text
+    end
+    -- Test helper: the text of the selected radio, as the button shows it.
+    function obj:SelectedText()
+      for _, entry in ipairs(self.entries) do
+        if entry.kind == "radio" and entry.isSelected(entry.value) then return entry.text end
+      end
+      return self.defaultText
     end
     -- Test helper: pick the nth entry as a click would.
     function obj:PickEntry(index)

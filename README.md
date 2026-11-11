@@ -20,7 +20,7 @@ Perl Infinity brings the dark boxes, square portraits and original bar textures 
 
 - **The X-Perl look**: dark translucent boxes, square portraits and the original bar textures.
 - **All your frames**: player, pet, target, target of target, focus, party with each member's target and pet, and raid with raid pets.
-- **Placement in Edit Mode**: drag your frames in the game's own layout editor, with snapping and positions saved per layout.
+- **Placement in Edit Mode**: drag your frames in the game's own layout editor, with snapping and positions saved per layout. The options open beside it, so you can change a frame's look while you move it.
 - **A settings window that feels native**: built from the game's own controls, with a live preview beside your settings.
 - **Raid tools that work from your own client**: tank targets, a healer mana window, class buff checks, aggro warnings and saved raid layouts.
 - **Healing and debuff cues**: incoming heals, heal over time bars, and highlights for debuffs you can remove.
@@ -50,7 +50,7 @@ Perl Infinity only loads on WoW: Forever.
 
 Type `/perlinfinity` or `/pinf` to open the options. You can also find it under **Options > AddOns**, or in the addon button on your minimap.
 
-To move a frame, open Edit Mode with `/pinf move` and drag it. Party targets and party pets each have their own box, so you can place them apart from the party. They stay beside the party until you drag them, and **Reset position** in the box's popup puts them back.
+To move a frame, open Edit Mode with `/pinf move` and drag it. The options open as a slim panel at the side of the screen, and clicking a frame shows its settings there. Empty frames, like your target when you have none, show a faded sample so you can see where they'll go. Party targets and party pets each have their own box, so you can place them apart from the party. They stay beside the party until you drag them, and **Reset position** in the box's popup puts them back.
 
 | Command | What it does |
 |---|---|
@@ -80,7 +80,7 @@ Most of the changes come from one rule: Forever hides most health, power and aur
 
 | | X-Perl and Z-Perl | Perl Infinity | Why |
 |---|---|---|---|
-| **Moving frames** | Unlock, drag, and resize with a grip | The game's Edit Mode | You arrange your whole screen in one place, with positions saved per layout |
+| **Moving frames** | Unlock, drag, and resize with a grip | The game's Edit Mode, with the options open beside it | You arrange your whole screen in one place, with positions saved per layout |
 | **Settings** | Its own options window | A window built from the game's controls, with a live preview | It behaves like the rest of the game's interface |
 | **Health and power** | The addon reads the numbers and works out bars and text | The game fills in the bars, text and colors | Forever hides these numbers |
 | **Buffs and debuffs** | The addon reads each one and draws its icon | The game draws them, using filters Perl Infinity sets | Their details are hidden in combat |

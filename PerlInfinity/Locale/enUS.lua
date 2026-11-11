@@ -108,6 +108,7 @@ L.LAUNCHER_MOVE_TIP = "Move and resize your frames in Edit Mode, the game's layo
 
 L.SEARCH = "Search"
 L.SEARCH_NONE = "No settings match that."
+L.SEARCH_RESULTS = "Search results"
 L.BUTTON_DEFAULTS = "Defaults"
 L.BUTTON_EDIT_MODE = "Move frames in Edit Mode"
 L.BUTTON_HIDE_PREVIEW = "Hide preview"
@@ -177,7 +178,7 @@ L.HEADER_NEW_CHARACTERS = "New characters"
 L.HEADER_SHARE = "Share"
 L.HEADER_POSITIONS = "Frame positions"
 
-L.TEXT_START = "Change what your frames show here, and move them in Edit Mode, the game's layout editor. The preview on the right updates as you go."
+L.TEXT_START = "Change what your frames show here, and move them in Edit Mode, the game's layout editor. The preview and your frames on screen update as you go, and this window stays open beside Edit Mode."
 L.TEXT_BINDINGS = "You can set key bindings for Perl Infinity in the game's Key Bindings menu."
 L.TEXT_TANKS = "A window for healers and raid leaders that shows each tank, what they're fighting, and who that enemy is attacking."
 L.TEXT_LAYOUTS = "Save who is in which raid group, and put everyone back in place later."
@@ -201,7 +202,8 @@ L.Buttons = {
 
 -- Settings: { label, tooltip }
 L.Options = {
-	editMode = { "Frame positions", "Move and resize your frames in Edit Mode. Click any box labeled Perl Infinity to change it. You can also right-click Perl Infinity in the AddOns menu on your minimap." },
+	editMode = { "Frame positions", "Move and resize your frames in Edit Mode. This window stays open at the side of the screen, and clicking any box labeled Perl Infinity shows its settings here. You can also right-click Perl Infinity in the AddOns menu on your minimap." },
+	["options.withEditMode"] = { "Open with Edit Mode", "Opens these options beside Edit Mode whenever you go into it, so you can change how frames look while you move them." },
 
 	["general.mouseoverHighlight"] = { "Highlight on mouseover", "Puts a soft gold glow over the frame under your mouse." },
 	["general.unitTooltips"] = { "Unit tooltips", "When to show the game's tooltip for the player or creature under your mouse." },

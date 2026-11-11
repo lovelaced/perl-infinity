@@ -173,12 +173,48 @@ function Movers:Register(mover)
 		OnMoved(frame, nil, point, x, y)
 	end)
 	ns.QuickSettings:Attach(mover)
+	-- Clicking a frame turns the docked options panel to its page. This hooks
+	-- LibEditMode's own selection box, never Blizzard's Edit Mode frames.
+	local selection = LEM.frameSelections and LEM.frameSelections[mover]
+	if selection then
+		selection:HookScript("OnMouseDown", function()
+			ns.Options:FollowFrame(mover.key)
+		end)
+	end
 end
 
--- Shows samples in empty frames while Edit Mode is open.
-local function ShowPlaceholders(show)
+---------------------------------------------------------------------------
+-- Samples
+---------------------------------------------------------------------------
+
+-- Empty frames (no target, no party) show samples while you arrange them in
+-- Edit Mode or style them in the options window. A sample steps aside the
+-- moment its real frame shows, and follows setting changes.
+local samplesShown = false
+
+local function RefreshSamples(settingsChanged)
+	samplesShown = (Movers.editing or ns.Options:IsShown()) and true or false
 	for key, mover in pairs(movers) do
-		ns.Call(ns.Placeholders.Set, ns.Placeholders, key, mover, show)
+		ns.Call(ns.Placeholders.Set, ns.Placeholders, key, mover, samplesShown, settingsChanged)
+	end
+end
+
+local sampler = { queued = false }
+function sampler:Flush()
+	local changed = self.settingsChanged
+	self.settingsChanged = false
+	RefreshSamples(changed)
+end
+
+-- Right away: Edit Mode or the options window just opened or closed.
+function Movers:RefreshSamples()
+	RefreshSamples(false)
+end
+
+-- A real frame showed or hid. Costs one check while no samples are up.
+local function QueueSamples()
+	if samplesShown then
+		ns.Scheduler:Queue(sampler)
 	end
 end
 
@@ -249,11 +285,17 @@ function fitter:Flush()
 	end
 end
 
--- A unit frame just appeared. Costs one check when Edit Mode is closed.
+-- A unit frame just appeared. Costs two checks when nothing's being arranged.
 function Movers:FrameShown()
 	if self.editing then
 		ns.Scheduler:Queue(fitter)
 	end
+	QueueSamples()
+end
+
+-- A unit frame just went away, so its sample may come back.
+function Movers:FrameHidden()
+	QueueSamples()
 end
 
 -- A setting moved or resized what hangs off this mover, so measure afresh.
@@ -278,15 +320,24 @@ function Movers:Login()
 	end)
 	LEM:RegisterCallback("enter", function()
 		Movers.editing = true
-		ShowPlaceholders(true)
+		RefreshSamples(false)
 		for _, mover in pairs(movers) do
 			mover.handleGrowth = nil
 		end
 		fitter:Flush()
+		ns.Options:EditModeEntered()
 	end)
 	LEM:RegisterCallback("exit", function()
 		Movers.editing = false
-		ShowPlaceholders(false)
+		ns.Options:EditModeExited()
+		RefreshSamples(false)
+	end)
+	-- Samples follow setting changes, no more often than the frames do.
+	ns.Config:Subscribe("", sampler, function()
+		if samplesShown then
+			sampler.settingsChanged = true
+			ns.Scheduler:QueueThrottled(sampler, 0.1)
+		end
 	end)
 	LEM:RegisterCallback("create", function(layoutName, _, sourceName)
 		local positions = PerlInfinityDB.positions

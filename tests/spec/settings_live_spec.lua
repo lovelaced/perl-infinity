@@ -377,10 +377,22 @@ describe("Perl Infinity low health warning", function()
 end)
 
 describe("Perl Infinity options preview", function()
+  -- Frames drawn in the preview pane. Samples on the real frames' spots are
+  -- previews too, but they live outside the window.
+  local function inPane(h, obj)
+    local pane = h.env.PerlInfinityOptionsFrame.Preview
+    local parent = obj:GetParent()
+    while parent do
+      if parent == pane then return true end
+      parent = parent:GetParent()
+    end
+    return false
+  end
+
   local function previewFrames(h)
     local list = {}
     for _, obj in ipairs(h.widgets.all) do
-      if type(obj) == "table" and obj.preview and obj.kind and obj:IsVisible() then
+      if type(obj) == "table" and obj.preview and obj.kind and obj:IsVisible() and inPane(h, obj) then
         list[#list + 1] = obj
       end
     end
@@ -477,6 +489,183 @@ describe("Perl Infinity options preview", function()
       expect(frame.AuraContainers == nil or next(frame.AuraContainers) == nil).toBe(true)
       expect(frame:IsProtected()).toBeFalsy()
     end
+  end)
+end)
+
+describe("Perl Infinity options beside Edit Mode", function()
+  local function window(h) return h.env.PerlInfinityOptionsFrame end
+
+  local function page(h) return window(h).PagePicker:SelectedText() end
+
+  -- Samples drawn where the real frames go, outside the options window.
+  local function samples(h, kind)
+    local pane = window(h) and window(h).Preview
+    local list = {}
+    for _, obj in ipairs(h.widgets.all) do
+      if type(obj) == "table" and obj.preview and obj.kind == kind and obj:IsVisible() then
+        local parent, inPane = obj:GetParent(), false
+        while parent do
+          if parent == pane then inPane = true end
+          parent = parent:GetParent()
+        end
+        if not inPane then list[#list + 1] = obj end
+      end
+    end
+    return list
+  end
+
+  it("opens docked when Edit Mode opens, and closes with it", function()
+    local h, F = boot()
+    h.lem:enter()
+    h:advance(0.1)
+    local w = window(h)
+    expect(w:IsShown()).toBe(true)
+    expect(F.Options:IsDocked()).toBe(true)
+    expect(w.Nav:IsShown()).toBe(false)
+    expect(w.PagePicker:IsShown()).toBe(true)
+    expect(w.Preview:IsShown()).toBe(false)
+    expect(w.EditModeButton:IsShown()).toBe(false)
+    expect(w:GetWidth() < 700).toBe(true)
+    -- At the right edge of the screen.
+    expect(h.env.UIParent:GetRight() - w:GetRight() < 40).toBe(true)
+    h.lem:exit()
+    h:advance(0.1)
+    expect(w:IsShown()).toBe(false)
+    expect(F.Options:IsDocked()).toBe(false)
+  end)
+
+  it("keeps a window you had open, docked, and gives it back full size after", function()
+    local h, F = boot()
+    F.Options:Open("target")
+    h:advance(0.1)
+    local w = window(h)
+    local width = w:GetWidth()
+    w.EditModeButton:Click()
+    h:advance(0.1)
+    expect(w:IsShown()).toBe(true)
+    expect(F.Options:IsDocked()).toBe(true)
+    expect(page(h)).toBe("Target")
+    expect(w:GetWidth() < width).toBe(true)
+    h.lem:exit()
+    h:advance(0.1)
+    expect(w:IsShown()).toBe(true)
+    expect(F.Options:IsDocked()).toBe(false)
+    expect(w:GetWidth()).toBeCloseTo(width, 0.5)
+    expect(w.Nav:IsShown()).toBe(true)
+    expect(w.Preview:IsShown()).toBe(true)
+  end)
+
+  it("turns to a frame's page when you click it, or pick More options", function()
+    local h, F = boot()
+    h.lem:enter()
+    h:advance(0.1)
+    h.widgets.callScript(h.lem.frameSelections[F.Movers:Get("focus")], "OnMouseDown", "LeftButton")
+    expect(page(h)).toBe("Focus")
+    h.widgets.callScript(h.lem.frameSelections[F.Movers:Get("targettarget")], "OnMouseDown", "LeftButton")
+    expect(page(h)).toBe("Target of target")
+    for _, button in ipairs(h.lem.frameButtons[F.Movers:Get("party")]) do
+      if button.text == F.L.EM_MORE_OPTIONS then button.click() end
+    end
+    expect(page(h)).toBe("Party")
+    expect(F.Options:IsDocked()).toBe(true)
+  end)
+
+  it("opens from More options after you closed it, and closes again with Edit Mode", function()
+    local h, F = boot()
+    h.lem:enter()
+    h:advance(0.1)
+    window(h):Hide()
+    for _, button in ipairs(h.lem.frameButtons[F.Movers:Get("pet")]) do
+      if button.text == F.L.EM_MORE_OPTIONS then button.click() end
+    end
+    expect(window(h):IsShown()).toBe(true)
+    expect(F.Options:IsDocked()).toBe(true)
+    h.lem:exit()
+    expect(window(h):IsShown()).toBe(false)
+  end)
+
+  it("stays out of the way when Open with Edit Mode is off, after a reload too", function()
+    local h, F = boot()
+    F.Options:SetOpensWithEditMode(false)
+    local h2 = h:reload()
+    h2:advance(0.5)
+    h2.lem:enter()
+    h2:advance(0.1)
+    expect(window(h2) == nil or not window(h2):IsShown()).toBe(true)
+    expect(h2.env.PerlInfinity.Options:OpensWithEditMode()).toBe(false)
+  end)
+
+  it("remembers where you put the panel", function()
+    local h, F = boot()
+    h.lem:enter()
+    h:advance(0.1)
+    local w = window(h)
+    w:ClearAllPoints()
+    w:SetPoint("TOPLEFT", h.env.UIParent, "TOPLEFT", 300, -250)
+    w.Grip:DragTo(720, 500)
+    h.lem:exit()
+    local h2 = h:reload()
+    h2:advance(0.5)
+    h2.lem:enter()
+    h2:advance(0.1)
+    local w2 = window(h2)
+    expect(w2:GetLeft()).toBeCloseTo(300, 0.5)
+    expect(h2.env.UIParent:GetTop() - w2:GetTop()).toBeCloseTo(250, 0.5)
+    expect(w2:GetWidth()).toBeCloseTo(720, 0.5)
+    expect(w2:GetHeight()).toBeCloseTo(500, 0.5)
+    expect(F.Options:IsDocked()).toBe(false)
+  end)
+
+  it("shows samples on empty frames while the window is open, and steps aside for real ones", function()
+    local h, F = boot()
+    expect(#samples(h, "target")).toBe(0)
+    F.Options:Open()
+    h:advance(0.1)
+    expect(#samples(h, "target")).toBe(1)
+    expect(#samples(h, "party")).toBe(4)
+    expect(samples(h, "target")[1]:IsMouseEnabled()).toBe(false)
+    h.world:setTarget(hostile())
+    h:advance(0.3)
+    expect(F.Frames:Get("target"):IsShown()).toBe(true)
+    expect(#samples(h, "target")).toBe(0)
+    h.world:setTarget(nil)
+    h:advance(0.3)
+    expect(#samples(h, "target")).toBe(1)
+    window(h):Hide()
+    expect(#samples(h, "target")).toBe(0)
+    expect(#samples(h, "party")).toBe(0)
+  end)
+
+  -- Edit Mode had samples before, but they kept the look they opened with.
+  for _, how in ipairs({ "the options window", "Edit Mode" }) do
+    it("updates samples when a setting changes, in " .. how, function()
+      local h, F = boot()
+      if how == "Edit Mode" then
+        F.Options:SetOpensWithEditMode(false)
+        h.lem:enter()
+      else
+        F.Options:Open()
+      end
+      h:advance(0.1)
+      local sample = samples(h, "target")[1]
+      expect(sample.PortraitBox:IsShown()).toBe(true)
+      F.Config:Set("target.portrait", false)
+      h:advance(0.3)
+      expect(sample.PortraitBox:IsShown()).toBe(false)
+    end)
+  end
+
+  it("never builds aura containers or secure frames for samples", function()
+    local h, F = boot()
+    h.lem:enter()
+    h:advance(0.1)
+    for _, kind in ipairs({ "target", "focus", "pet", "party", "partytarget", "partypet" }) do
+      for _, frame in ipairs(samples(h, kind)) do
+        expect(frame.AuraContainers == nil or next(frame.AuraContainers) == nil).toBe(true)
+        expect(frame:IsProtected()).toBeFalsy()
+      end
+    end
+    expect(F.Options:IsShown()).toBe(true)
   end)
 end)
 

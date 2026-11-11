@@ -318,6 +318,7 @@ function UnitFrame:OnHide()
 	self:UnregisterAllEvents()
 	Poller:Remove(self)
 	NotifyShown(self, false)
+	ns.Movers:FrameHidden()
 end
 
 ---------------------------------------------------------------------------

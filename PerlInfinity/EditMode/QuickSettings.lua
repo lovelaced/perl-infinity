@@ -151,11 +151,16 @@ local SETTINGS = {
 	end,
 }
 
--- Which options page "More options" opens for each frame.
+-- Which options page shows each frame's settings, for "More options" and
+-- for the docked options panel when you click a frame in Edit Mode.
 local PAGES = {
 	targettarget = "small", targettargettarget = "small", focustarget = "small", pettarget = "small",
 	partytarget = "party", partypet = "party", raidpets = "raid", tanks = "tools", healers = "tools", layouts = "tools", aggro = "general",
 }
+
+function QuickSettings.PageFor(key)
+	return PAGES[key] or key
+end
 
 function QuickSettings:Attach(mover)
 	local key = mover.key
@@ -167,7 +172,7 @@ function QuickSettings:Attach(mover)
 		{
 			text = L.EM_MORE_OPTIONS,
 			click = function()
-				ns.Options:Open(PAGES[key] or key)
+				ns.Options:Open(QuickSettings.PageFor(key))
 			end,
 		},
 	})
