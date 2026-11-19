@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 (2026-11-19)
+
+### Fixed
+
+- The debuff color over your frame is fainter, so your health bar stays easy to read when you're poisoned or diseased. The colored outline is the same as before.
+- Exporting and importing profiles now works every time. After another popup with a short text box, like a friend note, the export text was cut short and importing it said it didn't look like a profile. The list of raid names was cut short the same way.
+- Pressing Enter in the rename, import and save layout boxes does the same as clicking the button. If a profile name is taken or an import doesn't work, the box stays open so you can fix what you typed.
+
 ## 1.3.0 (2026-11-11)
 
 ### New
