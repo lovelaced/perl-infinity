@@ -10,10 +10,15 @@ local AuraHost, Media = ns.AuraHost, ns.Media
 
 local DispelHighlight = ns.Element("DispelHighlight", {})
 
--- How strongly the wash adds the debuff's color over the frame. The game
--- drops the alpha from the colors we give it, so the strength comes from
--- each texture's own alpha, which the game leaves alone.
-local WASH_ALPHA = 0.3
+-- How strongly the wash adds the debuff's color over the frame. It covers
+-- the bars too, so it has to stay faint enough that a green poison wash
+-- over a green health bar still shows where the bar ends.
+--
+-- The game colors and shows the outline and wash textures itself, and may
+-- reset their alpha as it does, which would put the wash back at full
+-- strength. So each part sits in its own holder frame, and the holder's
+-- alpha sets how strong it is. The game never touches the holders.
+local WASH_STRENGTH = 0.15
 
 -- Which units this frame should tint, from settings. Your own frame has an
 -- on/off switch; target and focus choose friends, enemies or both.
@@ -33,13 +38,17 @@ function DispelHighlight.Enabled(frame, conf)
 end
 
 -- Shows the outline, the wash or both. Hidden parts stay registered, since
--- the game owns their visibility; they're just fully transparent.
+-- the game owns their visibility; their holders are just fully transparent.
 function DispelHighlight.ApplyStyle(button, style)
-	for _, edge in ipairs(button.Edges) do
-		edge:SetAlpha(style ~= "background" and 1 or 0)
-	end
-	button.Wash:SetAlpha(style ~= "border" and WASH_ALPHA or 0)
+	button.EdgeLayer:SetAlpha(style ~= "background" and 1 or 0)
+	button.WashLayer:SetAlpha(style ~= "border" and WASH_STRENGTH or 0)
 	button.style = style
+end
+
+local function Layer(button)
+	local layer = CreateFrame("Frame", nil, button)
+	layer:SetAllPoints()
+	return layer
 end
 
 local function InitSlot(button, frame)
@@ -51,6 +60,11 @@ local function InitSlot(button, frame)
 	button:SetPoint("TOPLEFT", frame.NameBox, "TOPLEFT", -2, 2)
 	button:SetPoint("BOTTOMRIGHT", frame.StatsBox, "BOTTOMRIGHT", 2, -2)
 
+	local washLayer = Layer(button)
+	local edgeLayer = Layer(button)
+	edgeLayer:SetFrameLevel(washLayer:GetFrameLevel() + 1)
+	button.WashLayer, button.EdgeLayer = washLayer, edgeLayer
+
 	-- A 3 pixel outline made of four lines, each colored by the game.
 	local edges = {}
 	for i, points in ipairs({
@@ -59,7 +73,7 @@ local function InitSlot(button, frame)
 		{ "TOPLEFT", "BOTTOMLEFT", 3, 0 },
 		{ "TOPRIGHT", "BOTTOMRIGHT", -3, 0 },
 	}) do
-		local edge = button:CreateTexture(nil, "OVERLAY")
+		local edge = edgeLayer:CreateTexture(nil, "OVERLAY")
 		edge:SetTexture(Media.WHITE)
 		edge:SetPoint(points[1])
 		edge:SetPoint(points[2])
@@ -72,7 +86,7 @@ local function InitSlot(button, frame)
 	end
 	button.Edges = edges
 
-	local wash = button:CreateTexture(nil, "BACKGROUND")
+	local wash = washLayer:CreateTexture(nil, "BACKGROUND")
 	wash:SetTexture(Media.WHITE)
 	wash:SetPoint("TOPLEFT", 5, -5)
 	wash:SetPoint("BOTTOMRIGHT", -5, 5)

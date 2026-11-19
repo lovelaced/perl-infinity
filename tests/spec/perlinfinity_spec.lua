@@ -1614,10 +1614,15 @@ describe("Perl Infinity debuff highlight", function()
     return container and container.slots.dispel and container:GetAuraSlotFrame("dispel"), container
   end
 
+  -- How strongly each part shows: its own alpha times its holder's.
+  local function strength(texture)
+    return raw(texture:GetAlpha()) * raw(texture:GetParent():GetAlpha())
+  end
+
   local function alphas(button)
     local edges = {}
-    for i, edge in ipairs(button.Edges) do edges[i] = raw(edge:GetAlpha()) end
-    return edges, raw(button.Wash:GetAlpha())
+    for i, edge in ipairs(button.Edges) do edges[i] = strength(edge) end
+    return edges, strength(button.Wash)
   end
 
   -- Forever has no DebuffTypeColor. Without a color for a type, the game
@@ -1632,7 +1637,7 @@ describe("Perl Infinity debuff highlight", function()
   end)
 
   -- The game keeps only red, green and blue from our colors, so the wash's
-  -- strength has to come from the texture's own alpha.
+  -- strength comes from its holder frame's alpha.
   it("keeps the background faint on party frames", function()
     local h = boot()
     h.world:setParty({ { class = "PRIEST" } })
@@ -1642,8 +1647,23 @@ describe("Perl Infinity debuff highlight", function()
     expect(button:GetDispelTypeTextureCount()).toBe(5)
     local edges, wash = alphas(button)
     for _, alpha in ipairs(edges) do expect(alpha).toBe(1) end
-    expect(wash).toBe(0.3)
+    expect(wash).toBe(0.15)
     expect(button.Wash:GetBlendMode()).toBe("ADD")
+  end)
+
+  -- The wash covers the health bar. At full strength, a green poison wash
+  -- over a green bar hid where the bar ended.
+  it("keeps the background faint on your own frame even if the game resets the wash", function()
+    local h, F = boot()
+    h:advance(0.5)
+    local button = slotButton(F.Frames:Get("player"))
+    expect(button).toBeTruthy()
+    button.Wash:SetAlpha(1)
+    for _, edge in ipairs(button.Edges) do edge:SetAlpha(1) end
+    local edges, wash = alphas(button)
+    for _, alpha in ipairs(edges) do expect(alpha).toBe(1) end
+    expect(wash).toBe(0.15)
+    expect(button.EdgeLayer:GetFrameLevel()).toBeGreaterThan(button.WashLayer:GetFrameLevel())
   end)
 
   it("shows only the border or only the background when you pick one", function()
@@ -1660,9 +1680,11 @@ describe("Perl Infinity debuff highlight", function()
     expect(wash).toBe(0)
     F.Config:Set("highlight.debuffStyle", "background")
     h:advance(0.5)
+    -- Hidden parts stay hidden even if the game resets their own alpha.
+    for _, edge in ipairs(button.Edges) do edge:SetAlpha(1) end
     edges, wash = alphas(button)
     for _, alpha in ipairs(edges) do expect(alpha).toBe(0) end
-    expect(wash).toBe(0.3)
+    expect(wash).toBe(0.15)
   end)
 
   it("colors your own frame for any debuff, with no icons needed", function()
