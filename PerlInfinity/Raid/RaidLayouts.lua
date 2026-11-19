@@ -135,8 +135,14 @@ StaticPopupDialogs.PERLINFINITY_LAYOUT_SAVE = {
 	button1 = L.DIALOG_SAVE,
 	button2 = CANCEL,
 	hasEditBox = true,
+	-- Set every time, since the game's shared popup boxes keep the last
+	-- popup's limit otherwise.
+	maxLetters = 48,
 	OnAccept = function(dialog)
 		RaidLayouts:Save((dialog.EditBox or dialog.editBox):GetText())
+	end,
+	EditBoxOnEnterPressed = function(editBox)
+		StaticPopup_OnClick(editBox:GetParent(), 1)
 	end,
 	timeout = 0,
 	whileDead = true,

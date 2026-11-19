@@ -15,45 +15,73 @@ local function Popup(key, definition)
 	StaticPopupDialogs[key] = definition
 end
 
+-- Profile names stay short enough to read in a dropdown.
+local NAME_LETTERS = 48
+
+-- The game shares its popup frames, and a popup that limits its edit box
+-- (adding a friend allows 77 letters) leaves the limit for whichever popup
+-- comes next. So every popup here sets its own: a name length, or 0 for no
+-- limit on export strings, which run to hundreds of letters.
+local function TextPopup(key, maxLetters, definition)
+	definition.hasEditBox = true
+	definition.maxLetters = maxLetters
+	Popup(key, definition)
+end
+
 local function EditBox(dialog)
 	return dialog.EditBox or dialog.editBox
 end
 
-Popup("PERLINFINITY_PROFILE_NEW", {
+-- Enter does what the first button does.
+local function AcceptOnEnter(editBox)
+	StaticPopup_OnClick(editBox:GetParent(), 1)
+end
+
+local KEEP_OPEN = true
+
+-- A name or an import that doesn't work keeps its popup open, so you can
+-- fix what you typed instead of starting over.
+TextPopup("PERLINFINITY_PROFILE_NEW", NAME_LETTERS, {
 	text = L.DIALOG_NEW_PROFILE,
 	button1 = L.DIALOG_CREATE,
 	button2 = CANCEL,
-	hasEditBox = true,
 	OnAccept = function(dialog)
 		local name = strtrim(EditBox(dialog):GetText())
-		if Profiles:Create(name, Profiles:Active()) then
-			Profiles:Use(name)
-		else
-			ns.Print(L.MSG_PROFILE_EXISTS)
+		if name == "" then
+			return KEEP_OPEN
 		end
+		if not Profiles:Create(name, Profiles:Active()) then
+			ns.Print(L.MSG_PROFILE_EXISTS)
+			return KEEP_OPEN
+		end
+		Profiles:Use(name)
 	end,
-	EditBoxOnEnterPressed = function(editBox)
-		local dialog = editBox:GetParent()
-		StaticPopup_OnClick(dialog, 1)
-	end,
+	EditBoxOnEnterPressed = AcceptOnEnter,
 })
 
-Popup("PERLINFINITY_PROFILE_RENAME", {
+TextPopup("PERLINFINITY_PROFILE_RENAME", NAME_LETTERS, {
 	text = L.DIALOG_RENAME_PROFILE,
 	button1 = L.DIALOG_SAVE,
 	button2 = CANCEL,
-	hasEditBox = true,
 	OnShow = function(dialog)
 		EditBox(dialog):SetText(Profiles:Active())
 		EditBox(dialog):HighlightText()
 	end,
 	OnAccept = function(dialog)
 		local name = strtrim(EditBox(dialog):GetText())
+		if name == "" then
+			return KEEP_OPEN
+		end
+		if name == Profiles:Active() then
+			return
+		end
 		if not Profiles:Rename(Profiles:Active(), name) then
 			ns.Print(L.MSG_PROFILE_EXISTS)
+			return KEEP_OPEN
 		end
 		ns.Config:Rebuild()
 	end,
+	EditBoxOnEnterPressed = AcceptOnEnter,
 })
 
 Popup("PERLINFINITY_PROFILE_DELETE", {
@@ -74,10 +102,9 @@ Popup("PERLINFINITY_PROFILE_RESET", {
 	end,
 })
 
-Popup("PERLINFINITY_PROFILE_EXPORT", {
+TextPopup("PERLINFINITY_PROFILE_EXPORT", 0, {
 	text = L.DIALOG_EXPORT,
 	button1 = CLOSE,
-	hasEditBox = true,
 	editBoxWidth = 360,
 	OnShow = function(dialog)
 		local box = EditBox(dialog)
@@ -90,17 +117,16 @@ Popup("PERLINFINITY_PROFILE_EXPORT", {
 	end,
 })
 
-Popup("PERLINFINITY_PROFILE_IMPORT", {
+TextPopup("PERLINFINITY_PROFILE_IMPORT", 0, {
 	text = L.DIALOG_IMPORT,
 	button1 = L.DIALOG_IMPORT_BUTTON,
 	button2 = CANCEL,
-	hasEditBox = true,
 	editBoxWidth = 360,
 	OnAccept = function(dialog)
 		local payload, problem = Profiles:Decode(EditBox(dialog):GetText())
 		if not payload then
 			ns.Print(problem == "newer" and L.MSG_IMPORT_NEWER or L.MSG_IMPORT_BAD)
-			return
+			return KEEP_OPEN
 		end
 		local name = L.IMPORTED_PROFILE
 		local index = 1
@@ -112,6 +138,7 @@ Popup("PERLINFINITY_PROFILE_IMPORT", {
 		Profiles:Use(name)
 		ns.Print(L.MSG_IMPORTED:format(name))
 	end,
+	EditBoxOnEnterPressed = AcceptOnEnter,
 })
 
 Popup("PERLINFINITY_POSITIONS_RESET", {
@@ -149,10 +176,7 @@ function Dialogs:Copy(source)
 		ns.Print(L.MSG_NOT_IN_COMBAT)
 		return
 	end
-	local dialog = StaticPopup_Show("PERLINFINITY_PROFILE_COPY", source, Profiles:Active())
-	if dialog then
-		dialog.data = source
-	end
+	StaticPopup_Show("PERLINFINITY_PROFILE_COPY", source, Profiles:Active(), source)
 end
 
 function Dialogs:Rename()

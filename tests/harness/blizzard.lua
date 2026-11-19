@@ -270,40 +270,122 @@ function B.install(h)
   ---------------------------------------------------------------------------
   -- StaticPopup
   ---------------------------------------------------------------------------
+  -- Follows Blizzard_StaticPopup (Forever 1.60.1): four shared dialog frames,
+  -- reused by whichever popup comes next. A popup's edit box only gets a
+  -- length limit when the popup asks for one (maxLetters), and the limit is
+  -- never cleared, so a popup that doesn't ask keeps the last one's.
   env.StaticPopupDialogs = {}
+  local dialogFrames = {}
+  local function DialogFrames()
+    if #dialogFrames == 0 then
+      for i = 1, 4 do
+        local dialog = env.CreateFrame("Frame", "StaticPopup" .. i, env.UIParent)
+        dialog:Hide()
+        local editBox = env.CreateFrame("EditBox", "StaticPopup" .. i .. "EditBox", dialog)
+        editBox:Hide()
+        dialog.EditBox = editBox
+        function dialog:GetEditBox() return self.EditBox end
+        dialog:SetScript("OnHide", function(self)
+          local info = env.StaticPopupDialogs[self.which]
+          if info and info.OnHide then h:protectedCall(info.OnHide, "StaticPopup:" .. self.which, self, self.data) end
+          self.EditBox:SetText("")
+        end)
+        dialogFrames[i] = dialog
+      end
+    end
+    return dialogFrames
+  end
   env.StaticPopup_Show = function(which, text1, text2, data)
     local info = env.StaticPopupDialogs[which]
-    if not info then return nil end
+    if not info then error("Dialog " .. which .. " does not exist.", 2) end
     if info.hideOnEscape == nil then h:warn("StaticPopup '" .. which .. "' without hideOnEscape") end
-    local dialog = env.CreateFrame("Frame", nil, env.UIParent)
-    dialog.which, dialog.data = which, data
-    dialog.editBox = env.CreateFrame("EditBox", nil, dialog)
-    dialog.EditBox = dialog.editBox
-    dialog.GetEditBox = function(self) return self.editBox end
+    local dialog
+    for _, d in ipairs(DialogFrames()) do
+      if d:IsShown() and d.which == which then d:Hide(); dialog = d; break end
+    end
+    if not dialog then
+      for _, d in ipairs(dialogFrames) do
+        if not d:IsShown() then dialog = d; break end
+      end
+    end
+    if not dialog then return nil end
+    dialog.which, dialog.dialogInfo, dialog.data, dialog.data2 = which, info, data, nil
     dialog.text1, dialog.text2 = text1, text2
+    -- GameDialog formats info.text before anything else, so a popup without
+    -- one errors here and never gets its edit box set up.
+    if type(info.text) ~= "string" then
+      error("bad argument #1 to 'SetFormattedText' (string expected, got " .. type(info.text) .. ")", 2)
+    end
+    local editBox = dialog.EditBox
+    editBox:SetShown(info.hasEditBox and true or false)
+    if info.hasEditBox and info.maxLetters then editBox:SetMaxLetters(info.maxLetters) end
     h.popupsShown[#h.popupsShown + 1] = dialog
+    dialog:Show()
     if info.OnShow then h:protectedCall(info.OnShow, "StaticPopup:" .. which, dialog, data) end
     return dialog
   end
   env.StaticPopup_Hide = function(which)
-    for _, d in ipairs(h.popupsShown) do if d.which == which then d:Hide() end end
+    for _, d in ipairs(dialogFrames) do if d.which == which and d:IsShown() then d:Hide() end end
   end
   env.StaticPopup_Visible = function(which)
-    for _, d in ipairs(h.popupsShown) do if d.which == which and d:IsShown() then return d end end
-  end
-  -- test helper: press button1 (accept) on the latest dialog of this kind
-  function h:acceptPopup(which, text)
-    for i = #self.popupsShown, 1, -1 do
-      local d = self.popupsShown[i]
-      if d.which == which and d:IsShown() then
-        if text then d.editBox:SetText(text) end
-        local info = env.StaticPopupDialogs[which]
-        if info.OnAccept then self:protectedCall(info.OnAccept, "StaticPopup:" .. which, d, d.data) end
-        d:Hide()
-        return true
-      end
+    for i, d in ipairs(dialogFrames) do
+      if d.which == which and d:IsShown() then return "StaticPopup" .. i, d end
     end
-    return false
+  end
+  env.StaticPopup_FindVisible = function(which)
+    for _, d in ipairs(dialogFrames) do if d.which == which and d:IsShown() then return d end end
+  end
+  -- The "backward compatibility" path every addon popup takes: button 1
+  -- accepts, 2 cancels, 3 is the alternate. A handler returning true keeps
+  -- the popup open.
+  env.StaticPopup_OnClick = function(dialog, index)
+    if not dialog:IsShown() then return end
+    local which = dialog.which
+    local info = env.StaticPopupDialogs[which]
+    if not info then return end
+    local hide = true
+    local fn = (index == 1 and info.OnAccept) or (index == 3 and info.OnAlt) or (index == 2 and info.OnCancel)
+    if fn then
+      local keep
+      h:protectedCall(function(...) keep = fn(...) end, "StaticPopup:" .. which, dialog, dialog.data,
+        index == 1 and dialog.data2 or "clicked")
+      hide = index == 3 or not keep
+    end
+    if hide and which == dialog.which then dialog:Hide() end
+  end
+
+  -- Test helpers. The visible dialog of this kind, if any.
+  function h:popup(which)
+    return env.StaticPopup_FindVisible(which)
+  end
+  -- Types or pastes into the popup's edit box, which the box cuts to its
+  -- length limit like the game does.
+  function h:typeInPopup(which, text)
+    local d = self:popup(which)
+    if not d then return false end
+    d.EditBox:SetText(text)
+    return true
+  end
+  -- Press button 1 (accept), 2 (cancel) or 3 (alternate), after typing `text`.
+  function h:clickPopup(which, index, text)
+    local d = self:popup(which)
+    if not d then return false end
+    if text then d.EditBox:SetText(text) end
+    env.StaticPopup_OnClick(d, index)
+    return true
+  end
+  function h:acceptPopup(which, text)
+    return self:clickPopup(which, 1, text)
+  end
+  -- Enter or Escape in the popup's edit box, as StaticPopupEditBoxMixin
+  -- handles them: the popup's own handler if it has one, otherwise nothing.
+  function h:pressInPopup(which, key)
+    local d = self:popup(which)
+    if not d then return false end
+    local info = env.StaticPopupDialogs[which]
+    local handler = key == "ENTER" and info.EditBoxOnEnterPressed or info.EditBoxOnEscapePressed
+    if handler then h:protectedCall(handler, "StaticPopup:" .. which, d.EditBox, d.data) end
+    return true
   end
 
   ---------------------------------------------------------------------------

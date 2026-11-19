@@ -10,6 +10,9 @@ StaticPopupDialogs.PERLINFINITY_RAID_NAMES = {
 	text = L.DIALOG_RAID_NAMES,
 	button1 = CLOSE,
 	hasEditBox = true,
+	-- The game's popups share edit boxes, and some leave a length limit
+	-- behind (77 letters after adding a friend). A raid's names run longer.
+	maxLetters = 0,
 	editBoxWidth = 360,
 	OnShow = function(dialog)
 		local box = dialog.EditBox or dialog.editBox

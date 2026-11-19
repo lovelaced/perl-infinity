@@ -636,7 +636,15 @@ function T.install(W, h)
   }
 
   impl.EditBox = {
-    SetText = function(self, t) st(self).text = t; W.callScript(self, "OnTextChanged", false) end,
+    -- Like the game, a length limit (SetMaxLetters, 0 for none) cuts text
+    -- that's set or pasted.
+    SetText = function(self, t)
+      local s = st(self)
+      local max = s.maxLetters or 0
+      if type(t) == "string" and max > 0 and #t > max then t = t:sub(1, max) end
+      s.text = t
+      W.callScript(self, "OnTextChanged", false)
+    end,
     GetText = function(self) return st(self).text or "" end,
     Insert = function(self, t) local s = st(self); s.text = (s.text or "") .. t end,
     SetAutoFocus = function(self, on) st(self).autoFocus = on end,
@@ -645,6 +653,8 @@ function T.install(W, h)
     HasFocus = function(self) return st(self).focus == true end,
     HighlightText = function() end,
     SetMaxLetters = function(self, n) st(self).maxLetters = n end,
+    GetMaxLetters = function(self) return st(self).maxLetters or 0 end,
+    SetCountInvisibleLetters = function(self, on) st(self).countInvisibleLetters = on end,
     SetNumeric = function(self, on) st(self).numeric = on end,
     SetMultiLine = function(self, on) st(self).multiLine = on end,
     SetFontObject = function(self, fo) st(self).fontObject = fo end,

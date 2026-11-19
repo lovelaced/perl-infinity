@@ -473,10 +473,7 @@ local function AskDefaults()
 	if not page or not page.sections then
 		return
 	end
-	local dialog = StaticPopup_Show("PERLINFINITY_DEFAULTS", L.DEFAULTS_QUESTION:format(L.Pages[page.key]))
-	if dialog then
-		dialog.data = page
-	end
+	StaticPopup_Show("PERLINFINITY_DEFAULTS", L.DEFAULTS_QUESTION:format(L.Pages[page.key]), nil, page)
 end
 
 ---------------------------------------------------------------------------
